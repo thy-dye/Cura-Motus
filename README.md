@@ -17,5 +17,9 @@ If you are developing a production application, we recommend using TypeScript wi
 
 ## How to Run
 
-Go to the GitFit directory and run `npm install`
-Go to the backend directory 
+Install all the needed scripts. In the root directory run:
+ `npm install`
+Go to the backend directory and run:
+`pip install -r requirements.txt`
+
+To run the backend server run `npm run start-api-mac` for mac and `npm run start-api-mac` for windows. To run the frontend run `npm run dev` for the frontend.
