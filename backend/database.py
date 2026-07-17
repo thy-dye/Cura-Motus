@@ -16,7 +16,10 @@ supabase: Client = create_client(os.environ.get("SUPABASE_URL"), os.environ.get(
 
 '''
 Account Table functions
-To create an account pass the following in a json format
+To create an account pass the following in the following format
+/account/create?username=username&first_name=first_name&last_name=last_name&password=password&email=email
+/account/delete?id=int
+/account/get?username='username'
 '''
 @app.route('/account/create')
 def create_account():
@@ -39,7 +42,7 @@ def create_account():
                             })
                 .execute()
             )
-            return response.data[0]['id'], 201
+            return jsonify({"id": response.data[0]['id']}), 201
         except APIError as e:
             return _return_error_put(e)
 
@@ -80,7 +83,7 @@ def get_ID():
     username = request.args.get('username', default=None)
     try:
         response = _get_info_with_username(username)
-        return response.data[0]['id'], 201
+        return jsonify({"id": response.data[0]['id']}), 201
     except APIError as e:
         return _return_error_get(e)
     
@@ -177,7 +180,7 @@ def delete_user_completed_exercises():
 '''getter functions'''
 @app.route('/completion/get_recent_user_exercise')
 def get_recent_user_completed_exercise():
-
+        raise NotImplementedError("not implemented yet")
 
 @app.route('/completion/get_user_exercises')
 def get_user_completed_exercises():
@@ -187,9 +190,9 @@ def get_user_completed_exercises():
     )
 
 # you didn't see this function
-def _return_error_get(response, str='Get'):
+def _return_error_get(response, message='Get'):
     return jsonify({
-        "error": f"Failed to {str}",
+        "error": f"Failed to {message}",
         "details": str(response.message)
     }), 500
 def _return_error_put(response):
