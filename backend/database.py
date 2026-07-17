@@ -19,16 +19,16 @@ Account Table functions
 To create an account pass the following in the following format
 /account/create?username=username&first_name=first_name&last_name=last_name&password=password&email=email
 /account/delete?id=int
-/account/get?username='username'
+/account/login?username=username&password=password
+/account/get_account?username=username
 '''
 @app.route('/account/create')
 def create_account():
-    username   = request.args.get('username', default=None)
     first_name = request.args.get('first_name', default=None)
     last_name  = request.args.get('last_name', default=None)
     password   = request.args.get('password', default=None)
     email      = request.args.get('email', default=None)
-    if None in (username, first_name, last_name, password, email):
+    if None in (first_name, last_name, password, email):
         raise ValueError("Not enough parameters")
     else:
         try:
@@ -36,7 +36,6 @@ def create_account():
                 supabase.table("USER_PROFILES")
                 .insert({"FirstName": first_name ,
                             "LastName": last_name ,
-                            "Username": username ,
                             "Password": password ,
                             "Email": email ,
                             })
@@ -63,12 +62,18 @@ def delete_account():
         except APIError as e:
             return _return_error_delete(e)
 
-@app.route('/account/get') # if this should return a bool lmk otherwise it will return the whole account information
-def get_account():
-    username = request.args.get('username', default=None)
+#add password change to email being unique
+@app.route('/account/login')
+def login():
+    email = request.args.get('email', default=None)
+    password = request.args.get('password', default=None)
     try:
-        response = _get_info_with_username(username)
-        return response.data, 201
+        response = _get_info_with_email(email)
+        if not response.data:
+            return jsonify({"Error": "No account found with that email"}), 404
+        if response.data[0]["Password"] == password:
+            return response.data, 201
+        return jsonify({"Error": "Invalid Password"}), 400
     except APIError as e:
         return _return_error_get(e)
 
@@ -77,22 +82,25 @@ getter functions for Account Tables
 for all except Get_ID you should pass in the UserID 
 otherwise pass in the Username
 '''
-# do yall even read comments? Imma put yall on ball knowledge https://open.spotify.com/track/0KOGJKzBvcVFukOmepS4i9
-@app.route('/account/get_id')
-def get_ID():
-    username = request.args.get('username', default=None)
+@app.route('/account/get_account')
+def get_account():
+    email = request.args.get('email', default=None)
     try:
-        response = _get_info_with_username(username)
-        return jsonify({"id": response.data[0]['id']}), 201
+        response = _get_info_with_email(email)
+        if not response.data:
+            return jsonify({"Error": "No account found with that email"}), 404
+        return response.data, 201
     except APIError as e:
         return _return_error_get(e)
-    
-@app.route('/account/get_email')
-def get_email():
-    id = request.args.get('id', default=None, type=int)
+
+@app.route('/account/get_id')
+def get_ID():
+    email = request.args.get('email', default=None)
     try:
-        response = _get_info_with_id(id)
-        return response.data[0]['Email'], 201
+        response = _get_info_with_email(email)
+        if not response.data:
+            return jsonify({"Error": "No account found with that email"}), 404
+        return jsonify({"id": response.data[0]['id']}), 201
     except APIError as e:
         return _return_error_get(e)
     
@@ -101,6 +109,8 @@ def get_name():
     id = request.args.get('id', default=None, type=int)
     try:
         response = _get_info_with_id(id)
+        if not response.data:
+            return jsonify({"Error": "No account found with that id"}), 404
         return response.data[0]['FirstName'] + ' ' + response.data[0]['LastName'], 201
     except APIError as e:
         return _return_error_get(e)
@@ -120,14 +130,14 @@ def _get_info_with_id(id):
 
         )
     return response
-def _get_info_with_username(username):
-    if not username:
+def _get_info_with_email(email):
+    if not email:
         raise ValueError("No Parameters given")
     else:
         response = (
             supabase.table("USER_PROFILES")
             .select("*")
-            .filter("Username", "in", f'("{username}")')
+            .filter("Email", "in", f'("{email}")')
             .execute()
         )
     return response
