@@ -6,10 +6,16 @@ from flask_cors import CORS
 from services.exercise_api import(
     get_all_exercises,
     get_exercises_by_body_part,
-)
+)   
 
 app = Flask(__name__)
 CORS(app)
+
+from dotenv import load_dotenv
+load_dotenv()
+
+from services.exercise_video import exercise_video_bp
+app.register_blueprint(exercise_video_bp)
 
 @app.route("/api/health", methods=["GET"])
 def health_check():
