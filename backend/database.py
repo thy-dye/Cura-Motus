@@ -1,6 +1,7 @@
 import os
 from flask import Flask, request, jsonify
 from supabase import create_client, Client
+from werkzeug.security import generate_password_hash, check_password_hash
 from postgrest.exceptions import APIError
 from dotenv import load_dotenv
 
@@ -17,33 +18,40 @@ supabase: Client = create_client(os.environ.get("SUPABASE_URL"), os.environ.get(
 '''
 Account Table functions
 To create an account pass the following in the following format
-/account/create?username=username&first_name=first_name&last_name=last_name&password=password&email=email
-/account/delete?id=int
-/account/login?username=username&password=password
-/account/get_account?username=username
 '''
-@app.route('/account/create')
+@app.route('/account/create', methods=['POST'])
 def create_account():
-    first_name = request.args.get('first_name', default=None)
-    last_name  = request.args.get('last_name', default=None)
-    password   = request.args.get('password', default=None)
-    email      = request.args.get('email', default=None)
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"Error": "Request body must be JSON"}), 400
+
+    first_name = data.get('first_name')
+    last_name  = data.get('last_name')
+    password   = data.get('password')
+    email      = data.get('email')
+
     if None in (first_name, last_name, password, email):
-        raise ValueError("Not enough parameters")
-    else:
-        try:
+        return jsonify({"Error": "Not enough parameters"}), 400
+
+    hashed_password = generate_password_hash(password)
+    try:
+        response = _get_info_with_email(email)
+        if not response.data:
             response = (
                 supabase.table("USER_PROFILES")
                 .insert({"FirstName": first_name ,
                             "LastName": last_name ,
-                            "Password": password ,
+                            "Password": hashed_password,
                             "Email": email ,
                             })
                 .execute()
             )
             return jsonify({"id": response.data[0]['id']}), 201
-        except APIError as e:
-            return _return_error_put(e)
+        
+        return jsonify({"Error": "Account already associated with Email"}), 401
+
+    except APIError as e:
+        return _return_error_get(e)
 
 @app.route('/account/delete')
 def delete_account():
@@ -62,25 +70,27 @@ def delete_account():
         except APIError as e:
             return _return_error_delete(e)
 
-#add password change to email being unique
-@app.route('/account/login')
+@app.route('/account/login', methods=['POST'])
 def login():
-    email = request.args.get('email', default=None)
-    password = request.args.get('password', default=None)
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"Error": "Request body must be JSON"}), 400
+    email = data.get('email')
+    password = data.get('password')
     try:
         response = _get_info_with_email(email)
         if not response.data:
             return jsonify({"Error": "No account found with that email"}), 404
-        if response.data[0]["Password"] == password:
-            return response.data, 201
-        return jsonify({"Error": "Invalid Password"}), 400
+        if check_password_hash(response.data[0]["Password"], password):
+            return response.data, 200
+        return jsonify({"Error": "Invalid Password"}), 401
     except APIError as e:
         return _return_error_get(e)
 
 '''
 getter functions for Account Tables
 for all except Get_ID you should pass in the UserID 
-otherwise pass in the Username
+otherwise pass in the Email
 '''
 @app.route('/account/get_account')
 def get_account():
@@ -89,7 +99,7 @@ def get_account():
         response = _get_info_with_email(email)
         if not response.data:
             return jsonify({"Error": "No account found with that email"}), 404
-        return response.data, 201
+        return response.data, 200
     except APIError as e:
         return _return_error_get(e)
 
@@ -111,7 +121,7 @@ def get_name():
         response = _get_info_with_id(id)
         if not response.data:
             return jsonify({"Error": "No account found with that id"}), 404
-        return response.data[0]['FirstName'] + ' ' + response.data[0]['LastName'], 201
+        return response.data[0]['FirstName'] + ' ' + response.data[0]['LastName'], 200
     except APIError as e:
         return _return_error_get(e)
 
