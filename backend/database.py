@@ -53,6 +53,7 @@ def create_account():
     except APIError as e:
         return _return_error_get(e)
 
+#i doubt anyone is gonna use this if you do lmk so i can change this to post as it should be
 @app.route('/account/delete')
 def delete_account():
     id = request.args.get('id', default=None, type=int)
@@ -157,11 +158,11 @@ def _get_info_with_email(email):
 '''
 Account sports + exercises Table
 '''
-@app.route('/activities/put_sports')
+@app.route('/activities/put_sports', methods=['POST'])
 def put_sports_played():
         raise NotImplementedError("not implemented yet")
 
-@app.route('/activities/put_exercises')
+@app.route('/activities/put_exercises_ids', methods=['POST'])
 def put_exercises():
         raise NotImplementedError("not implemented yet")
 
@@ -182,9 +183,24 @@ def delete_exercises():
 def get_user_data():
     raise NotImplementedError("not implemented yet")
 
-
-
 # ---------------- TABLE 3 ---------------- 
+'''
+exercise data and ids
+'''
+@app.route('/exercise/add_exercise', methods=['POST'])
+def add_exercise():
+    raise NotImplementedError('not implemented yet')
+
+@app.route('/exercise/remove_exercise', methods=['POST'])
+def remove_exercise():
+    raise NotImplementedError('not implemented yet')
+
+@app.route('/exercise/get_exercise')
+def get_exercise():
+    raise NotImplementedError('not implemented yet')
+
+
+# ---------------- TABLE 4 ---------------- 
 
 '''
 Completion of exercises table
