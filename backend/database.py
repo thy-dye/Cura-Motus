@@ -1,12 +1,12 @@
 import os
-from flask import Flask, request, jsonify
+from flask import Blueprint, request, jsonify
 from supabase import create_client, Client
 from postgrest.exceptions import APIError
 from dotenv import load_dotenv
 
 load_dotenv()
 
-app = Flask(__name__)
+account_bp = Blueprint("account", __name__)
 
 supabase: Client = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
 '''For all getter functions just pass the ID'''
@@ -22,7 +22,7 @@ To create an account pass the following in the following format
 /account/login?username=username&password=password
 /account/get_account?username=username
 '''
-@app.route('/account/create')
+@account_bp.route('/account/create')
 def create_account():
     first_name = request.args.get('first_name', default=None)
     last_name  = request.args.get('last_name', default=None)
@@ -45,7 +45,7 @@ def create_account():
         except APIError as e:
             return _return_error_put(e)
 
-@app.route('/account/delete')
+@account_bp.route('/account/delete')
 def delete_account():
     id = request.args.get('id', default=None, type=int)
     if not id:
@@ -63,7 +63,7 @@ def delete_account():
             return _return_error_delete(e)
 
 #add password change to email being unique
-@app.route('/account/login')
+@account_bp.route('/account/login')
 def login():
     email = request.args.get('email', default=None)
     password = request.args.get('password', default=None)
@@ -82,7 +82,7 @@ getter functions for Account Tables
 for all except Get_ID you should pass in the UserID 
 otherwise pass in the Username
 '''
-@app.route('/account/get_account')
+@account_bp.route('/account/get_account')
 def get_account():
     email = request.args.get('email', default=None)
     try:
@@ -93,7 +93,7 @@ def get_account():
     except APIError as e:
         return _return_error_get(e)
 
-@app.route('/account/get_id')
+@account_bp.route('/account/get_id')
 def get_ID():
     email = request.args.get('email', default=None)
     try:
@@ -104,7 +104,7 @@ def get_ID():
     except APIError as e:
         return _return_error_get(e)
     
-@app.route('/account/get_name')
+@account_bp.route('/account/get_name')
 def get_name():
     id = request.args.get('id', default=None, type=int)
     try:
@@ -147,28 +147,28 @@ def _get_info_with_email(email):
 '''
 Account sports + exercises Table
 '''
-@app.route('/activities/put_sports')
+@account_bp.route('/activities/put_sports')
 def put_sports_played():
         raise NotImplementedError("not implemented yet")
 
-@app.route('/activities/put_exercises')
+@account_bp.route('/activities/put_exercises')
 def put_exercises():
         raise NotImplementedError("not implemented yet")
 
-@app.route('/activities/delete_user')
+@account_bp.route('/activities/delete_user')
 def delete_user_data():
         raise NotImplementedError("not implemented yet")
 
-@app.route('/activities/delete_sports')
+@account_bp.route('/activities/delete_sports')
 def delete_sports_played():
         raise NotImplementedError("not implemented yet")
 
-@app.route('/activities/delete_exercises')
+@account_bp.route('/activities/delete_exercises')
 def delete_exercises():
         raise NotImplementedError("not implemented yet")
 
 '''getter functions'''
-@app.route('/activities/get_user')
+@account_bp.route('/activities/get_user')
 def get_user_data():
     raise NotImplementedError("not implemented yet")
 
@@ -179,20 +179,20 @@ def get_user_data():
 '''
 Completion of exercises table
 '''
-@app.route('/completion/put')
+@account_bp.route('/completion/put')
 def put_user_completed_exercise():
         raise NotImplementedError("not implemented yet")
 
-@app.route('/completion/delete_user_exercises')
+@account_bp.route('/completion/delete_user_exercises')
 def delete_user_completed_exercises():
         raise NotImplementedError("not implemented yet")
 
 '''getter functions'''
-@app.route('/completion/get_recent_user_exercise')
+@account_bp.route('/completion/get_recent_user_exercise')
 def get_recent_user_completed_exercise():
         raise NotImplementedError("not implemented yet")
 
-@app.route('/completion/get_user_exercises')
+@account_bp.route('/completion/get_user_exercises')
 def get_user_completed_exercises():
     response = (
            supabase.table("")
@@ -209,6 +209,3 @@ def _return_error_put(response):
     return _return_error_get(response, 'Put')
 def _return_error_delete(response):
     return _return_error_get(response, 'Delete')
-
-if __name__ == '__main__':
-    app.run(debug=True)
