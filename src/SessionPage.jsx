@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import NavBar from "./Navbar.jsx";
+import PoseDetector from "./cv/PoseDetector.jsx";
 
 // TODO: replace with the real plan (mix of cameraExercises + additionalExercises
 // from the Gemini-generated plan, or the user's prescribed PT exercises)
@@ -33,47 +34,9 @@ const MOCK_SESSION = [
 ];
 
 function CameraFeed({ feedbackMessage }) {
-  const videoRef = useRef(null);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    let stream;
-    async function startCamera() {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch {
-        setError("Couldn't access camera. Check permissions and try again.");
-      }
-    }
-    startCamera();
-
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, []);
-
   return (
-    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[var(--foreground)]">
-      {error ? (
-        <div className="flex h-full items-center justify-center px-6 text-center text-sm text-white/80">
-          {error}
-        </div>
-      ) : (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="h-full w-full object-cover -scale-x-100"
-        />
-      )}
-
-      {/* TODO (Malek): pose overlay / skeleton drawing goes here, on top of the video */}
+    <div className="relative w-full overflow-hidden rounded-xl bg-[var(--foreground)]">
+      <PoseDetector />
 
       {feedbackMessage && (
         <div className="absolute bottom-3 left-3 right-3 rounded-lg bg-black/60 px-4 py-2 text-sm font-medium text-white">

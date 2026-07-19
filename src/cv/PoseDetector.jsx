@@ -139,13 +139,13 @@ function PoseDetector() {
   }, [])
 
   return (
-    <div style={{ position: 'relative', width: 640, margin: '0 auto' }}>
+    <div style={{ position: 'relative', width: '100%' }}>
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted
-        style={{ width: 640, height: 480, transform: 'scaleX(-1)' }}
+        style={{ display: 'block', width: '100%', height: 'auto', transform: 'scaleX(-1)' }}
       />
       <canvas
         ref={canvasRef}
@@ -153,12 +153,12 @@ function PoseDetector() {
           position: 'absolute',
           top: 0,
           left: 0,
-          width: 640,
-          height: 480,
+          width: '100%',
+          height: '100%',
           transform: 'scaleX(-1)',
         }}
       />
-      <div style={{ marginTop: 8, fontFamily: 'sans-serif', fontSize: 14 }}>
+      <div style={{ marginTop: 8, fontFamily: 'sans-serif', fontSize: 14, color: '#fff' }}>
         {status === 'loading' && 'Loading pose model…'}
         {status === 'running' &&
           `Tracking — ${visibleLandmarkCount}/33 landmarks visible`}
