@@ -6,26 +6,52 @@ export default function AuthPage({ onAuthSuccess }) {
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
-    username: "",
     email: "",
     password: "",
   });
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setSubmitting(true);
 
-    // TODO: replace with real Flask/Supabase auth call
-    // Sign in:   POST /backend/account/login    { username or email, password }
-    // Sign up:   POST /backend/account/create    { first_name, last_name, username, email, password }
-    console.log("submit", mode, form);
+    try {
+      const params =
+        mode === "signin"
+          ? new URLSearchParams({ email: form.email, password: form.password })
+          : new URLSearchParams({
+              first_name: form.firstName,
+              last_name: form.lastName,
+              email: form.email,
+              password: form.password,
+            });
+      const path = mode === "signin" ? "login" : "create";
 
-    if (onAuthSuccess) onAuthSuccess();
+      const res = await fetch(`/backend/account/${path}?${params}`);
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setError(data?.Error || data?.error || "Something went wrong. Please try again.");
+        return;
+      }
+
+      const user =
+        mode === "signin"
+          ? { firstName: data?.[0]?.FirstName, email: form.email }
+          : { firstName: form.firstName, email: form.email };
+
+      if (onAuthSuccess) onAuthSuccess(user);
+    } catch {
+      setError("Couldn't reach the server. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const switchMode = (nextMode) => {
@@ -101,20 +127,6 @@ export default function AuthPage({ onAuthSuccess }) {
               </div>
             )}
 
-            {mode === "signup" && (
-              <label className="auth-field">
-                Username
-                <input
-                  type="text"
-                  name="username"
-                  value={form.username}
-                  onChange={handleChange}
-                  placeholder="jrivera"
-                  required
-                />
-              </label>
-            )}
-
             <label className="auth-field">
               Email
               <input
@@ -142,8 +154,12 @@ export default function AuthPage({ onAuthSuccess }) {
 
             {error && <p className="auth-error">{error}</p>}
 
-            <button type="submit" className="auth-submit">
-              {mode === "signin" ? "Sign In" : "Create Account"}
+            <button type="submit" className="auth-submit" disabled={submitting}>
+              {submitting
+                ? "Please wait…"
+                : mode === "signin"
+                ? "Sign In"
+                : "Create Account"}
             </button>
           </form>
 

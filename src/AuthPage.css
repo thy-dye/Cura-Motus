@@ -1,42 +1,12 @@
-:root {
-  --color-bg: #eef3f0;
-  --color-surface: #ffffff;
-  --color-primary: #1f4b43;
-  --color-primary-dark: #163832;
-  --color-accent: #d9a441;
-  --color-text: #16221d;
-  --color-text-muted: #5b6b63;
-  --color-error: #b3492f;
-  --font-display: "Space Grotesk", "Segoe UI", sans-serif;
-  --font-body: "IBM Plex Sans", "Segoe UI", sans-serif;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-/* Override Vite's default #root centering/max-width so the page can go full-bleed.
-   Better long-term fix: remove the conflicting rule directly from src/index.css */
-html,
-body,
-#root {
-  width: 100%;
-  height: 100%;
-  max-width: none !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  text-align: left !important;
-}
-
 .auth-page {
   position: relative;
   min-height: 100vh;
   width: 100%;
-  background: var(--color-bg);
+  background: var(--background);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   padding: 24px;
 }
 
@@ -52,43 +22,43 @@ body,
 }
 
 .auth-wordmark {
-  font-family: var(--font-display);
-  font-size: 2.4rem;
+  font-family: var(--font-sans);
+  font-size: 2.2rem;
   font-weight: 700;
-  color: var(--color-primary-dark);
+  color: var(--foreground);
   margin: 0 0 4px;
   letter-spacing: -0.02em;
 }
 
 .auth-tagline {
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   font-size: 0.95rem;
   margin: 0 0 32px;
 }
 
 .auth-card {
   width: 100%;
-  background: var(--color-surface);
-  border-radius: 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
   padding: 32px;
-  box-shadow: 0 20px 60px -20px rgba(22, 34, 29, 0.25);
 }
 
 .auth-tabs {
   position: relative;
   display: flex;
   margin-bottom: 28px;
-  border-bottom: 1px solid #e3e8e5;
+  border-bottom: 1px solid var(--border);
 }
 
 .auth-tab {
   flex: 1;
   background: none;
   border: none;
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 600;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   padding: 0 0 14px;
   cursor: pointer;
   text-align: center;
@@ -96,11 +66,11 @@ body,
 }
 
 .auth-tab.active {
-  color: var(--color-primary-dark);
+  color: var(--foreground);
 }
 
 .auth-tab:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
@@ -110,7 +80,7 @@ body,
   left: 0;
   width: 50%;
   height: 2px;
-  background: var(--color-accent);
+  background: var(--primary);
   transition: transform 0.25s ease;
 }
 
@@ -148,29 +118,29 @@ body,
   gap: 6px;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--color-text);
+  color: var(--foreground);
 }
 
 .auth-field input {
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 400;
   padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid #d7ddda;
-  background: #fbfbfa;
-  color: var(--color-text);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  color: var(--foreground);
   width: 100%;
 }
 
 .auth-field input:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--ring);
   outline-offset: 1px;
-  border-color: var(--color-primary);
+  border-color: var(--primary);
 }
 
 .auth-error {
-  color: var(--color-error);
+  color: var(--error);
   font-size: 0.85rem;
   margin: 0;
 }
@@ -179,10 +149,10 @@ body,
   margin-top: 8px;
   padding: 14px;
   border: none;
-  border-radius: 10px;
-  background: var(--color-primary);
-  color: #ffffff;
-  font-family: var(--font-body);
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -190,24 +160,24 @@ body,
 }
 
 .auth-submit:hover {
-  background: var(--color-primary-dark);
+  background: var(--primary-hover);
 }
 
 .auth-submit:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
 .auth-switch {
   margin: 20px 0 0;
   font-size: 0.85rem;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
 }
 
 .auth-switch button {
   background: none;
   border: none;
-  color: var(--color-primary-dark);
+  color: var(--foreground);
   font-weight: 600;
   cursor: pointer;
   padding: 0;
@@ -215,7 +185,7 @@ body,
 }
 
 .auth-switch button:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
@@ -235,7 +205,7 @@ body,
   }
 
   .auth-wordmark {
-    font-size: 2rem;
+    font-size: 1.9rem;
   }
 
   .auth-row {
