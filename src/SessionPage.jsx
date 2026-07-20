@@ -3,10 +3,14 @@ import NavBar from "./Navbar.jsx";
 import PoseDetector from "./cv/PoseDetector.jsx";
 import { exerciseLabel } from "./exercises.js";
 
-function CameraFeed({ feedbackMessage }) {
+function CameraFeed({ exerciseId, feedbackMessage, onFeedback, onRepComplete }) {
   return (
     <div className="relative w-full overflow-hidden rounded-xl bg-[var(--foreground)]">
-      <PoseDetector />
+      <PoseDetector
+        exerciseId={exerciseId}
+        onFeedback={onFeedback}
+        onRepComplete={onRepComplete}
+      />
 
       {feedbackMessage && (
         <div className="absolute bottom-3 left-3 right-3 rounded-lg bg-black/60 px-4 py-2 text-sm font-medium text-white">
@@ -79,6 +83,18 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
   const [feedbackMessage, setFeedbackMessage] = useState(
     "Get in position, then start your set."
   );
+  // Live rep count from the CV angle tracker for the current set. This is
+  // informational for now (see TODO below on completeSet) - the manual
+  // "Log Set" button is still what actually advances the session.
+  const [cvRepCount, setCvRepCount] = useState(0);
+
+  const handleCvFeedback = (message) => {
+    setFeedbackMessage(message);
+  };
+
+  const handleCvRepComplete = () => {
+    setCvRepCount((prev) => prev + 1);
+  };
 
   useEffect(() => {
     if (sessionProp) return; // explicit session passed in, skip fetching
@@ -136,6 +152,7 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
     const exercise = session[exerciseIndex];
     if (currentSet < exercise.sets) {
       setCurrentSet((prev) => prev + 1);
+      setCvRepCount(0);
       setFeedbackMessage(`Set ${currentSet} done. Nice work, get ready for the next set.`);
     } else {
       logCompletion(exercise);
@@ -161,6 +178,7 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
     if (exerciseIndex < session.length - 1) {
       setExerciseIndex((prev) => prev + 1);
       setCurrentSet(1);
+      setCvRepCount(0);
       setFeedbackMessage("Get in position, then start your set.");
     } else if (onNavigate) {
       onNavigate("home");
@@ -222,13 +240,18 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
             className="rounded-xl bg-[var(--primary)] px-6 py-3 text-lg font-bold text-[var(--primary-foreground)] shadow-sm"
             style={{ fontFamily: "var(--font-mono)" }}
           >
-            Set {currentSet} / {exercise.sets} &nbsp;·&nbsp; {exercise.reps} reps
+            Set {currentSet} / {exercise.sets} &nbsp;·&nbsp; {cvRepCount}/{exercise.reps} reps
           </div>
         </div>
 
         {isCamera ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <CameraFeed feedbackMessage={feedbackMessage} />
+            <CameraFeed
+              exerciseId={exercise.exerciseId}
+              feedbackMessage={feedbackMessage}
+              onFeedback={handleCvFeedback}
+              onRepComplete={handleCvRepComplete}
+            />
             <VideoAndSteps exercise={exercise} />
           </div>
         ) : (
