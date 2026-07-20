@@ -41,7 +41,7 @@ export function angleBetweenPoints(a, vertex, c) {
  * `alpha` closer to 1 = less smoothing (more responsive, more jitter);
  * closer to 0 = more smoothing (more stable, more lag).
  */
-export function createAngleSmoother(alpha = 0.4) {
+export function createAngleSmoother(alpha = 0.25) {
   let smoothed = null;
   return function smooth(rawAngle) {
     if (rawAngle == null) return smoothed;

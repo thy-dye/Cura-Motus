@@ -181,10 +181,15 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
           jointStatusRef.current[angleDef.name] = result.pass ? 'pass' : 'fail'
 
           if (!result.pass && !feedbackMessage) {
-            const tooLow = result.checkpointAngle < angleDef.target[0]
-            feedbackMessage = tooLow
-              ? angleDef.feedbackTooShallow
-              : angleDef.feedbackTooDeep
+            // A smaller angle than the target range means more joint
+            // flexion than intended (e.g. squatting deeper than the
+            // target knee angle) - that's the "too deep" fault, not
+            // "too shallow". A larger angle means less flexion than
+            // intended (didn't bend enough) - "too shallow".
+            const tooDeep = result.checkpointAngle < angleDef.target[0]
+            feedbackMessage = tooDeep
+              ? angleDef.feedbackTooDeep
+              : angleDef.feedbackTooShallow
           }
         }
 
