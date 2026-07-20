@@ -195,7 +195,11 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
           }
         }
 
-        if (result.repCompleted) {
+        // Only the exercise's designated primary angle increments the
+        // rep counter - secondary posture checks (back angle, torso
+        // angle) evaluate the same physical rep and would double-count
+        // it otherwise.
+        if (result.repCompleted && angleDef.countsAsRep) {
           onRepCompleteRef.current?.(angleDef.name)
         }
 
@@ -214,6 +218,13 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
               vertexIndex: imageLandmarks.indexOf(vertexImage),
               cIndex: imageLandmarks.indexOf(cImage),
               status,
+              // Drawn last (see predictWebcam) so it wins on any bone it
+              // shares with a secondary angle - e.g. kneeAngle's hip-knee
+              // bone overlaps backAngle's hip-knee bone, and we want the
+              // whole hip-to-ankle leg line to consistently reflect the
+              // primary angle's status rather than whichever happened to
+              // draw last.
+              isPrimary: !!angleDef.countsAsRep,
             })
           }
         }
@@ -279,9 +290,15 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
             // Draw the full two-bone segment (e.g. the entire hip-knee-
             // ankle leg line) in pass/fail color, on top of the base
             // skeleton, so it's clear which whole angle is being judged -
-            // not just a dot on one joint.
+            // not just a dot on one joint. Secondary angles (back/torso
+            // posture) draw first, primary (knee/arm) draws last, so it
+            // wins on any bone the two share instead of getting
+            // overwritten.
             const landmarks = result.landmarks[0]
-            for (const { aIndex, vertexIndex, cIndex, status } of highlights) {
+            const orderedHighlights = [...highlights].sort(
+              (a, b) => Number(a.isPrimary) - Number(b.isPrimary)
+            )
+            for (const { aIndex, vertexIndex, cIndex, status } of orderedHighlights) {
               const a = landmarks?.[aIndex]
               const vertex = landmarks?.[vertexIndex]
               const c = landmarks?.[cIndex]

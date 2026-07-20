@@ -30,6 +30,11 @@ export const EXERCISE_ANGLE_CONFIG = {
         label: 'knee bend',
         feedbackTooShallow: 'Bend your knees more - squat lower.',
         feedbackTooDeep: "That's too deep - ease up slightly.",
+        // The primary movement angle for this exercise - only this one
+        // increments the rep counter. backAngle below evaluates the same
+        // physical rep (it shares the hip-knee bone with kneeAngle), so
+        // letting it *also* count reps would double-count every squat.
+        countsAsRep: true,
       },
       {
         name: 'backAngle',
@@ -55,6 +60,7 @@ export const EXERCISE_ANGLE_CONFIG = {
         label: 'front knee bend',
         feedbackTooShallow: 'Lower your back knee more toward the floor.',
         feedbackTooDeep: "That's too deep - ease up slightly.",
+        countsAsRep: true,
       },
       {
         name: 'torsoAngle',
@@ -80,6 +86,7 @@ export const EXERCISE_ANGLE_CONFIG = {
         label: 'arm height',
         feedbackTooShallow: 'Raise your arm higher - to shoulder height.',
         feedbackTooDeep: "That's a bit high - lower to shoulder height.",
+        countsAsRep: true,
       },
       {
         name: 'elbowAngle',
