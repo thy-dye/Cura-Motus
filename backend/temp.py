@@ -17,8 +17,8 @@ load_dotenv()
 from services.exercise_video import exercise_video_bp
 app.register_blueprint(exercise_video_bp)
 
-from services.gemini_plan import gemini_plan_bp
-app.register_blueprint(gemini_plan_bp)
+from services.openai_plan import openai_plan_bp
+app.register_blueprint(openai_plan_bp)
 
 @app.route("/api/health", methods=["GET"])
 def health_check():
