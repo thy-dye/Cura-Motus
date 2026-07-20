@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from supabase import create_client, Client
 from postgrest.exceptions import APIError
@@ -146,61 +147,201 @@ def _get_info_with_email(email):
     return response
 
 
-# ---------------- TABLE 2 ---------------- 
+# ---------------- TABLE 2 ----------------
 '''
 Account sports + exercises Table
-'''
-@account_bp.route('/activities/put_sports')
-def put_sports_played():
-        raise NotImplementedError("not implemented yet")
+One row per user (ACTIVITIES.UserID is unique) — put_* routes upsert
+on UserID, so calling them again just overwrites this user's row.
 
-@account_bp.route('/activities/put_exercises')
+put_sports: POST JSON { "user_id": int, "sports": [string, ...] }
+put_exercises: POST JSON { "user_id": int, "exercises": <jsonb> }
+delete_user / delete_sports / delete_exercises / get_user: ?user_id=int
+'''
+@account_bp.route('/activities/put_sports', methods=["POST"])
+def put_sports_played():
+    body = request.json or {}
+    user_id = body.get('user_id')
+    sports = body.get('sports')
+    if user_id is None or sports is None:
+        raise ValueError("Not enough parameters")
+    try:
+        response = (
+            supabase.table("ACTIVITIES")
+            .upsert({"UserID": user_id, "SportsPlayed": sports}, on_conflict="UserID")
+            .execute()
+        )
+        return response.data, 201
+    except APIError as e:
+        return _return_error_put(e)
+
+@account_bp.route('/activities/put_exercises', methods=["POST"])
 def put_exercises():
-        raise NotImplementedError("not implemented yet")
+    body = request.json or {}
+    user_id = body.get('user_id')
+    exercises = body.get('exercises')
+    if user_id is None or exercises is None:
+        raise ValueError("Not enough parameters")
+    try:
+        response = (
+            supabase.table("ACTIVITIES")
+            .upsert({"UserID": user_id, "Exercises": exercises}, on_conflict="UserID")
+            .execute()
+        )
+        return response.data, 201
+    except APIError as e:
+        return _return_error_put(e)
 
 @account_bp.route('/activities/delete_user')
 def delete_user_data():
-        raise NotImplementedError("not implemented yet")
+    user_id = request.args.get('user_id', default=None, type=int)
+    if not user_id:
+        raise ValueError("No Parameters given")
+    try:
+        response = (
+            supabase.table("ACTIVITIES")
+            .delete()
+            .eq("UserID", user_id)
+            .execute()
+        )
+        return response.data, 201
+    except APIError as e:
+        return _return_error_delete(e)
 
 @account_bp.route('/activities/delete_sports')
 def delete_sports_played():
-        raise NotImplementedError("not implemented yet")
+    user_id = request.args.get('user_id', default=None, type=int)
+    if not user_id:
+        raise ValueError("No Parameters given")
+    try:
+        response = (
+            supabase.table("ACTIVITIES")
+            .update({"SportsPlayed": []})
+            .eq("UserID", user_id)
+            .execute()
+        )
+        return response.data, 201
+    except APIError as e:
+        return _return_error_delete(e)
 
 @account_bp.route('/activities/delete_exercises')
 def delete_exercises():
-        raise NotImplementedError("not implemented yet")
+    user_id = request.args.get('user_id', default=None, type=int)
+    if not user_id:
+        raise ValueError("No Parameters given")
+    try:
+        response = (
+            supabase.table("ACTIVITIES")
+            .update({"Exercises": []})
+            .eq("UserID", user_id)
+            .execute()
+        )
+        return response.data, 201
+    except APIError as e:
+        return _return_error_delete(e)
 
 '''getter functions'''
 @account_bp.route('/activities/get_user')
 def get_user_data():
-    raise NotImplementedError("not implemented yet")
+    user_id = request.args.get('user_id', default=None, type=int)
+    if not user_id:
+        raise ValueError("No Parameters given")
+    try:
+        response = (
+            supabase.table("ACTIVITIES")
+            .select("*")
+            .eq("UserID", user_id)
+            .execute()
+        )
+        if not response.data:
+            return jsonify({"Error": "No activities found for that user"}), 404
+        return response.data, 201
+    except APIError as e:
+        return _return_error_get(e)
 
 
 
-# ---------------- TABLE 3 ---------------- 
+# ---------------- TABLE 3 ----------------
 
 '''
-Completion of exercises table
+Completion of exercises table — append-only log, one row per
+completed exercise (not one row per user like ACTIVITIES).
+
+put: POST JSON { "user_id": int, "exercise_name": string }
+delete_user_exercises / get_recent_user_exercise / get_user_exercises: ?user_id=int
 '''
-@account_bp.route('/completion/put')
+@account_bp.route('/completion/put', methods=["POST"])
 def put_user_completed_exercise():
-        raise NotImplementedError("not implemented yet")
+    body = request.json or {}
+    user_id = body.get('user_id')
+    exercise_name = body.get('exercise_name')
+    if user_id is None or not exercise_name:
+        raise ValueError("Not enough parameters")
+    try:
+        response = (
+            supabase.table("EXERCISE_COMPLETION")
+            .insert({
+                "UserID": user_id,
+                "ExerciseName": exercise_name,
+                "Completion": datetime.now(timezone.utc).isoformat(),
+            })
+            .execute()
+        )
+        return response.data, 201
+    except APIError as e:
+        return _return_error_put(e)
 
 @account_bp.route('/completion/delete_user_exercises')
 def delete_user_completed_exercises():
-        raise NotImplementedError("not implemented yet")
+    user_id = request.args.get('user_id', default=None, type=int)
+    if not user_id:
+        raise ValueError("No Parameters given")
+    try:
+        response = (
+            supabase.table("EXERCISE_COMPLETION")
+            .delete()
+            .eq("UserID", user_id)
+            .execute()
+        )
+        return response.data, 201
+    except APIError as e:
+        return _return_error_delete(e)
 
 '''getter functions'''
 @account_bp.route('/completion/get_recent_user_exercise')
 def get_recent_user_completed_exercise():
-        raise NotImplementedError("not implemented yet")
+    user_id = request.args.get('user_id', default=None, type=int)
+    if not user_id:
+        raise ValueError("No Parameters given")
+    try:
+        response = (
+            supabase.table("EXERCISE_COMPLETION")
+            .select("*")
+            .eq("UserID", user_id)
+            .order("Completion", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if not response.data:
+            return jsonify({"Error": "No completed exercises found for that user"}), 404
+        return response.data, 201
+    except APIError as e:
+        return _return_error_get(e)
 
 @account_bp.route('/completion/get_user_exercises')
 def get_user_completed_exercises():
-    response = (
-           supabase.table("")
-           .select
-    )
+    user_id = request.args.get('user_id', default=None, type=int)
+    if not user_id:
+        raise ValueError("No Parameters given")
+    try:
+        response = (
+            supabase.table("EXERCISE_COMPLETION")
+            .select("*")
+            .eq("UserID", user_id)
+            .execute()
+        )
+        return response.data, 201
+    except APIError as e:
+        return _return_error_get(e)
 
 # you didn't see this function
 def _return_error_get(response, message='Get'):
