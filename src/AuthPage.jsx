@@ -47,8 +47,8 @@ export default function AuthPage({ onAuthSuccess }) {
 
       const user =
         mode === "signin"
-          ? { firstName: data?.[0]?.FirstName, email: form.email }
-          : { firstName: form.firstName, email: form.email };
+          ? { id: data?.[0]?.id, firstName: data?.[0]?.FirstName, email: form.email }
+          : { id: data?.id, firstName: form.firstName, email: form.email };
 
       if (onAuthSuccess) onAuthSuccess(user);
     } catch {

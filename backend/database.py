@@ -150,7 +150,7 @@ def _get_info_with_email(email):
 # ---------------- TABLE 2 ----------------
 '''
 Account sports + exercises Table
-One row per user (ACTIVITIES.UserID is unique) — put_* routes upsert
+One row per user (ACTIVITIES.UserID is unique). The put_* routes upsert
 on UserID, so calling them again just overwrites this user's row.
 
 put_sports: POST JSON { "user_id": int, "sports": [string, ...] }
@@ -263,7 +263,7 @@ def get_user_data():
 # ---------------- TABLE 3 ----------------
 
 '''
-Completion of exercises table — append-only log, one row per
+Completion of exercises table. is an append-only log, one row per
 completed exercise (not one row per user like ACTIVITIES).
 
 put: POST JSON { "user_id": int, "exercise_name": string }

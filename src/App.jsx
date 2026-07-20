@@ -4,21 +4,62 @@ import HomePage from "./Homepage.jsx";
 import PlanPage from "./PlanPage.jsx";
 import SessionPage from "./SessionPage.jsx";
 
+const STORAGE_KEY = "curamotus_user";
+
+function loadStoredUser() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 function App() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(loadStoredUser);
   const [page, setPage] = useState("home");
 
+  const handleAuthSuccess = (nextUser) => {
+    setUser(nextUser);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextUser));
+    } catch {
+      // e.g. private browsing with storage disabled, session just won't persist
+    }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setPage("home");
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // nothing to clean up if storage was never available
+    }
+  };
+
   if (!user) {
-    return <AuthPage onAuthSuccess={setUser} />;
+    return <AuthPage onAuthSuccess={handleAuthSuccess} />;
   }
 
   switch (page) {
     case "home":
-      return <HomePage userName={user.firstName} onNavigate={setPage} />;
+      return (
+        <HomePage
+          user={user}
+          userName={user.firstName}
+          onNavigate={setPage}
+          onLogout={handleLogout}
+        />
+      );
     case "plan":
-      return <PlanPage onNavigate={setPage} />;
+      return (
+        <PlanPage user={user} onNavigate={setPage} onLogout={handleLogout} />
+      );
     case "session":
-      return <SessionPage onNavigate={setPage} />;
+      return (
+        <SessionPage user={user} onNavigate={setPage} onLogout={handleLogout} />
+      );
     default:
       return (
         <div style={{ padding: 40 }}>

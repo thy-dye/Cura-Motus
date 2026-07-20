@@ -10,7 +10,7 @@ import {
  *
  * CV MVP step 1 (per CuraMotus project plan, Thursday goal):
  * Get MediaPipe Pose running in LIVE_STREAM mode, with the 33 body
- * landmarks drawn live over the webcam feed. Detection only — no
+ * landmarks drawn live over the webcam feed. Detection only, no
  * joint-angle scoring yet. That comes once this is solid for all
  * 5 locked exercises.
  */
@@ -20,6 +20,7 @@ function PoseDetector() {
   const poseLandmarkerRef = useRef(null)
   const animationFrameRef = useRef(null)
   const lastVideoTimeRef = useRef(-1)
+  const streamRef = useRef(null)
 
   const [status, setStatus] = useState('loading') // loading | ready | running | error
   const [errorMessage, setErrorMessage] = useState('')
@@ -54,7 +55,11 @@ function PoseDetector() {
           video: { width: 640, height: 480 },
         })
 
-        if (cancelled) return
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop())
+          return
+        }
+        streamRef.current = stream
         const video = videoRef.current
         video.srcObject = stream
 
@@ -131,9 +136,9 @@ function PoseDetector() {
       if (poseLandmarkerRef.current) {
         poseLandmarkerRef.current.close()
       }
-      const video = videoRef.current
-      if (video && video.srcObject) {
-        video.srcObject.getTracks().forEach((track) => track.stop())
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop())
+        streamRef.current = null
       }
     }
   }, [])
@@ -161,7 +166,7 @@ function PoseDetector() {
       <div style={{ marginTop: 8, fontFamily: 'sans-serif', fontSize: 14, color: '#fff' }}>
         {status === 'loading' && 'Loading pose model…'}
         {status === 'running' &&
-          `Tracking — ${visibleLandmarkCount}/33 landmarks visible`}
+          `Tracking: ${visibleLandmarkCount}/33 landmarks visible`}
         {status === 'error' && `Error: ${errorMessage}`}
       </div>
     </div>
