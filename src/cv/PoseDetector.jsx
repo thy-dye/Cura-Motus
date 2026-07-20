@@ -195,12 +195,27 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
           }
         }
 
-        // Only the exercise's designated primary angle increments the
-        // rep counter - secondary posture checks (back angle, torso
-        // angle) evaluate the same physical rep and would double-count
-        // it otherwise.
-        if (result.repCompleted && angleDef.countsAsRep) {
-          onRepCompleteRef.current?.(angleDef.name)
+        if (result.repCompleted) {
+          // Without this, a fail from the bottom of one rep would stay
+          // highlighted red (and the correction text would stay on
+          // screen) indefinitely once you're back standing at rest -
+          // completely decoupled from what your body is actually doing
+          // between reps. Clear back to neutral once you've returned to
+          // baseline, and only the exercise's designated primary angle
+          // increments the rep counter (secondary posture checks like
+          // back/torso angle evaluate the same physical rep and would
+          // double-count it otherwise).
+          const wasPass = jointStatusRef.current[angleDef.name] === 'pass'
+          jointStatusRef.current[angleDef.name] = null
+
+          if (angleDef.countsAsRep) {
+            onRepCompleteRef.current?.(angleDef.name)
+            if (!feedbackMessage) {
+              feedbackMessage = wasPass
+                ? 'Nice rep! Get ready for the next one.'
+                : "Reset - get ready for your next rep."
+            }
+          }
         }
 
         // Color the full two-bone segment (a-vertex-c) in the overlay
