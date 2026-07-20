@@ -227,8 +227,16 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
         if (jointStatusRef.current[angleDef.name] && performance.now() - setAt > MIN_HIGHLIGHT_MS) {
           jointStatusRef.current[angleDef.name] = null
         }
+        // Only the primary angle gets a colored overlay. Secondary
+        // posture checks (back/torso angle) still drive feedback text,
+        // but drawing their own overlapping segment too created a
+        // visible double-line artifact wherever it shares a bone with
+        // the primary (e.g. backAngle's hip-knee bone drawn right
+        // alongside kneeAngle's) - two separate stroke calls along
+        // almost-but-not-quite the same path, rather than one clean
+        // hip-to-ankle line.
         const status = jointStatusRef.current[angleDef.name]
-        if (status) {
+        if (status && angleDef.countsAsRep) {
           const aImage = getJointLandmark(imageLandmarks, nameA, side)
           const vertexImage = getJointLandmark(imageLandmarks, nameVertex, side)
           const cImage = getJointLandmark(imageLandmarks, nameC, side)
@@ -238,13 +246,6 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
               vertexIndex: imageLandmarks.indexOf(vertexImage),
               cIndex: imageLandmarks.indexOf(cImage),
               status,
-              // Drawn last (see predictWebcam) so it wins on any bone it
-              // shares with a secondary angle - e.g. kneeAngle's hip-knee
-              // bone overlaps backAngle's hip-knee bone, and we want the
-              // whole hip-to-ankle leg line to consistently reflect the
-              // primary angle's status rather than whichever happened to
-              // draw last.
-              isPrimary: !!angleDef.countsAsRep,
             })
           }
         }
@@ -310,15 +311,11 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
             // Draw the full two-bone segment (e.g. the entire hip-knee-
             // ankle leg line) in pass/fail color, on top of the base
             // skeleton, so it's clear which whole angle is being judged -
-            // not just a dot on one joint. Secondary angles (back/torso
-            // posture) draw first, primary (knee/arm) draws last, so it
-            // wins on any bone the two share instead of getting
-            // overwritten.
+            // not just a dot on one joint. Only the primary angle per
+            // exercise ever ends up in `highlights` (see processAngles),
+            // so there's no overlap/draw-order concern here anymore.
             const landmarks = result.landmarks[0]
-            const orderedHighlights = [...highlights].sort(
-              (a, b) => Number(a.isPrimary) - Number(b.isPrimary)
-            )
-            for (const { aIndex, vertexIndex, cIndex, status } of orderedHighlights) {
+            for (const { aIndex, vertexIndex, cIndex, status } of highlights) {
               const a = landmarks?.[aIndex]
               const vertex = landmarks?.[vertexIndex]
               const c = landmarks?.[cIndex]
