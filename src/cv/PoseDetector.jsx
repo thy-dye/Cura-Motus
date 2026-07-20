@@ -5,7 +5,7 @@ import {
   DrawingUtils,
 } from '@mediapipe/tasks-vision'
 import { EXERCISE_ANGLE_CONFIG, jointsUsedBy } from './exerciseAngleConfig'
-import { pickDominantSide, getJointLandmark } from './poseLandmarks'
+import { pickDominantSide, getJointLandmark, findUnclearJoints } from './poseLandmarks'
 import { angleBetweenPoints, createAngleSmoother } from './angleMath'
 import { createPhaseTracker } from './repPhaseTracker'
 
@@ -145,9 +145,19 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
       // Lock which side of the body we're tracking, once, based on
       // whichever side is more visible - avoids flip-flopping mid-session.
       if (!activeSideRef.current) {
-        const side = pickDominantSide(worldLandmarks, jointsUsedBy(exerciseId))
+        const requiredJoints = jointsUsedBy(exerciseId)
+        const side = pickDominantSide(worldLandmarks, requiredJoints)
         if (!side) {
-          onFeedbackRef.current?.(config.instructions)
+          // Give a specific reason instead of just repeating the generic
+          // positioning instructions forever with no explanation - e.g.
+          // "we can't see your feet/ankles" tells the user exactly what
+          // to fix (usually: back up, or reframe the camera).
+          const unclear = findUnclearJoints(worldLandmarks, requiredJoints)
+          onFeedbackRef.current?.(
+            unclear.length > 0
+              ? `We can't see your ${unclear.join(' or ')} clearly - step back so your full body is in frame.`
+              : config.instructions
+          )
           return highlightByIndex
         }
         activeSideRef.current = side

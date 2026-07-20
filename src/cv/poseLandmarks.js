@@ -90,3 +90,40 @@ export function getJointLandmark(landmarks, jointName, side) {
 export function isLandmarkVisible(landmark) {
   return !!landmark && (landmark.visibility ?? 0) >= MIN_VISIBILITY;
 }
+
+const JOINT_DISPLAY_NAME = {
+  shoulder: 'shoulder',
+  elbow: 'elbow',
+  wrist: 'wrist',
+  hip: 'hip',
+  knee: 'knee',
+  ankle: 'feet/ankles',
+};
+
+/**
+ * When pickDominantSide() can't lock a side yet, this figures out *why*
+ * - which specific joint(s) aren't visible on either side - so we can
+ * give an actionable prompt ("we can't see your ankles - step back")
+ * instead of just repeating the generic positioning instructions with
+ * no explanation.
+ *
+ * Returns an array of joint display names that are missing/low-confidence
+ * on both sides. Empty array means everything needed is actually visible
+ * (pickDominantSide should be able to lock in that case).
+ */
+export function findUnclearJoints(landmarks, jointNames) {
+  const unclear = [];
+
+  for (const joint of jointNames) {
+    const sides = JOINT_SIDES[joint];
+    if (!sides) continue;
+    const left = landmarks[sides.left];
+    const right = landmarks[sides.right];
+    const bestVisibility = Math.max(left?.visibility ?? 0, right?.visibility ?? 0);
+    if (bestVisibility < MIN_VISIBILITY) {
+      unclear.push(JOINT_DISPLAY_NAME[joint] || joint);
+    }
+  }
+
+  return unclear;
+}
