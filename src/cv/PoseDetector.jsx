@@ -133,14 +133,16 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
 
     /**
      * Runs the full angle-detection pipeline for one frame's pose result.
-     * Returns a map of vertex landmark index -> 'pass' | 'fail', used to
-     * color-code the skeleton overlay for whichever joints are actively
-     * being evaluated.
+     * Returns a list of { aIndex, vertexIndex, cIndex, status } - one per
+     * actively-evaluated angle - so the full two-bone segment (e.g. the
+     * entire hip-knee-ankle leg line) can be color-coded, not just a dot
+     * on the vertex joint. That makes it clear which whole angle/limb is
+     * being judged, not just which single joint.
      */
     function processAngles(worldLandmarks, imageLandmarks) {
       const config = EXERCISE_ANGLE_CONFIG[exerciseId]
-      const highlightByIndex = {}
-      if (!config) return highlightByIndex
+      const highlights = []
+      if (!config) return highlights
 
       // Lock which side of the body we're tracking, once, based on
       // whichever side is more visible - avoids flip-flopping mid-session.
@@ -158,7 +160,7 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
               ? `We can't see your ${unclear.join(' or ')} clearly - step back so your full body is in frame.`
               : config.instructions
           )
-          return highlightByIndex
+          return highlights
         }
         activeSideRef.current = side
       }
@@ -197,13 +199,22 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
           onRepCompleteRef.current?.(angleDef.name)
         }
 
-        // Color the vertex joint in the overlay based on the most recent
-        // evaluation for this angle (persists until the next checkpoint).
-        const vertexImageLandmark = getJointLandmark(imageLandmarks, nameVertex, side)
-        if (vertexImageLandmark) {
-          const status = jointStatusRef.current[angleDef.name]
-          if (status) {
-            highlightByIndex[imageLandmarks.indexOf(vertexImageLandmark)] = status
+        // Color the full two-bone segment (a-vertex-c) in the overlay
+        // based on the most recent evaluation for this angle (persists
+        // until the next checkpoint) - e.g. the whole hip-knee-ankle leg
+        // line, not just a dot on the knee.
+        const status = jointStatusRef.current[angleDef.name]
+        if (status) {
+          const aImage = getJointLandmark(imageLandmarks, nameA, side)
+          const vertexImage = getJointLandmark(imageLandmarks, nameVertex, side)
+          const cImage = getJointLandmark(imageLandmarks, nameC, side)
+          if (aImage && vertexImage && cImage) {
+            highlights.push({
+              aIndex: imageLandmarks.indexOf(aImage),
+              vertexIndex: imageLandmarks.indexOf(vertexImage),
+              cIndex: imageLandmarks.indexOf(cImage),
+              status,
+            })
           }
         }
       }
@@ -214,7 +225,7 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
         onFeedbackRef.current?.(config.instructions)
       }
 
-      return highlightByIndex
+      return highlights
     }
 
     function predictWebcam() {
@@ -240,7 +251,7 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
             ctx.clearRect(0, 0, canvas.width, canvas.height)
 
             let visibleCount = 0
-            let highlightByIndex = {}
+            let highlights = []
 
             for (let i = 0; i < result.landmarks.length; i++) {
               const landmarks = result.landmarks[i]
@@ -261,23 +272,39 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
               ).length
 
               if (worldLandmarks && exerciseId) {
-                highlightByIndex = processAngles(worldLandmarks, landmarks)
+                highlights = processAngles(worldLandmarks, landmarks)
               }
             }
 
-            // Draw a colored ring over whichever joints are actively
-            // being evaluated, on top of the base skeleton, so the
-            // feedback points at exactly what's being measured.
-            for (const [indexStr, statusValue] of Object.entries(highlightByIndex)) {
-              const index = Number(indexStr)
-              const landmarks = result.landmarks[0]
-              const lm = landmarks?.[index]
-              if (!lm) continue
+            // Draw the full two-bone segment (e.g. the entire hip-knee-
+            // ankle leg line) in pass/fail color, on top of the base
+            // skeleton, so it's clear which whole angle is being judged -
+            // not just a dot on one joint.
+            const landmarks = result.landmarks[0]
+            for (const { aIndex, vertexIndex, cIndex, status } of highlights) {
+              const a = landmarks?.[aIndex]
+              const vertex = landmarks?.[vertexIndex]
+              const c = landmarks?.[cIndex]
+              if (!a || !vertex || !c) continue
+
+              const color = status === 'pass' ? PASS_COLOR : FAIL_COLOR
+              ctx.lineWidth = 6
+              ctx.strokeStyle = color
               ctx.beginPath()
-              ctx.arc(lm.x * canvas.width, lm.y * canvas.height, 12, 0, 2 * Math.PI)
-              ctx.lineWidth = 4
-              ctx.strokeStyle = statusValue === 'pass' ? PASS_COLOR : FAIL_COLOR
+              ctx.moveTo(a.x * canvas.width, a.y * canvas.height)
+              ctx.lineTo(vertex.x * canvas.width, vertex.y * canvas.height)
+              ctx.lineTo(c.x * canvas.width, c.y * canvas.height)
               ctx.stroke()
+
+              // Small filled dots at all 3 points of the segment so the
+              // endpoints (e.g. hip, ankle) read clearly too, not just
+              // the vertex.
+              for (const point of [a, vertex, c]) {
+                ctx.beginPath()
+                ctx.arc(point.x * canvas.width, point.y * canvas.height, 6, 0, 2 * Math.PI)
+                ctx.fillStyle = color
+                ctx.fill()
+              }
             }
 
             setVisibleLandmarkCount(visibleCount)
