@@ -11,6 +11,11 @@ import { createPhaseTracker } from './repPhaseTracker'
 
 const PASS_COLOR = '#22c55e' // green
 const FAIL_COLOR = '#ef4444' // red
+// Minimum time a pass/fail highlight + message stays visible once set,
+// regardless of how quickly the rep-phase tracker cycles back to
+// baseline. Without this, a fast rep could clear the highlight within a
+// frame or two, making it effectively invisible in practice.
+const MIN_HIGHLIGHT_MS = 1200
 
 /**
  * PoseDetector
@@ -52,6 +57,7 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
   const trackersRef = useRef({}) // angleName -> tracker from createPhaseTracker
   const smoothersRef = useRef({}) // angleName -> smoothing fn from createAngleSmoother
   const jointStatusRef = useRef({}) // angleName -> 'pass' | 'fail' | null (for coloring)
+  const jointStatusSetAtRef = useRef({}) // angleName -> performance.now() when status was last set
   const onFeedbackRef = useRef(onFeedback)
   const onRepCompleteRef = useRef(onRepComplete)
 
@@ -70,11 +76,13 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
     trackersRef.current = {}
     smoothersRef.current = {}
     jointStatusRef.current = {}
+    jointStatusSetAtRef.current = {}
     if (config) {
       for (const angleDef of config.angles) {
         trackersRef.current[angleDef.name] = createPhaseTracker(angleDef)
         smoothersRef.current[angleDef.name] = createAngleSmoother()
         jointStatusRef.current[angleDef.name] = null
+        jointStatusSetAtRef.current[angleDef.name] = 0
       }
       onFeedbackRef.current?.(config.instructions)
     }
@@ -181,6 +189,7 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
 
         if (result.evaluated) {
           jointStatusRef.current[angleDef.name] = result.pass ? 'pass' : 'fail'
+          jointStatusSetAtRef.current[angleDef.name] = performance.now()
 
           if (!result.pass && !feedbackMessage) {
             // A smaller angle than the target range means more joint
@@ -195,33 +204,29 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
           }
         }
 
-        if (result.repCompleted) {
-          // Without this, a fail from the bottom of one rep would stay
-          // highlighted red (and the correction text would stay on
-          // screen) indefinitely once you're back standing at rest -
-          // completely decoupled from what your body is actually doing
-          // between reps. Clear back to neutral once you've returned to
-          // baseline, and only the exercise's designated primary angle
-          // increments the rep counter (secondary posture checks like
-          // back/torso angle evaluate the same physical rep and would
-          // double-count it otherwise).
+        if (result.repCompleted && angleDef.countsAsRep) {
           const wasPass = jointStatusRef.current[angleDef.name] === 'pass'
-          jointStatusRef.current[angleDef.name] = null
-
-          if (angleDef.countsAsRep) {
-            onRepCompleteRef.current?.(angleDef.name)
-            if (!feedbackMessage) {
-              feedbackMessage = wasPass
-                ? 'Nice rep! Get ready for the next one.'
-                : "Reset - get ready for your next rep."
-            }
+          onRepCompleteRef.current?.(angleDef.name)
+          if (!feedbackMessage) {
+            feedbackMessage = wasPass
+              ? 'Nice rep! Get ready for the next one.'
+              : "Reset - get ready for your next rep."
           }
         }
 
         // Color the full two-bone segment (a-vertex-c) in the overlay
-        // based on the most recent evaluation for this angle (persists
-        // until the next checkpoint) - e.g. the whole hip-knee-ankle leg
-        // line, not just a dot on the knee.
+        // based on the most recent evaluation for this angle. Held for a
+        // fixed minimum duration from the moment it was set (MIN_HIGHLIGHT_MS),
+        // independent of how fast the rep-phase tracker cycles back to
+        // baseline - without this, a quick rep could clear the color
+        // within a single frame or two, making it effectively invisible
+        // even though it was technically "working." After that hold
+        // window, it clears back to neutral so it doesn't stay stuck
+        // indefinitely either.
+        const setAt = jointStatusSetAtRef.current[angleDef.name] || 0
+        if (jointStatusRef.current[angleDef.name] && performance.now() - setAt > MIN_HIGHLIGHT_MS) {
+          jointStatusRef.current[angleDef.name] = null
+        }
         const status = jointStatusRef.current[angleDef.name]
         if (status) {
           const aImage = getJointLandmark(imageLandmarks, nameA, side)
