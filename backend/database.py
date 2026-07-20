@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify
 from supabase import create_client, Client
 from postgrest.exceptions import APIError
 from dotenv import load_dotenv
+from werkzeug.security import generate_password_hash, check_password_hash
 
 load_dotenv()
 
@@ -16,18 +17,19 @@ supabase: Client = create_client(os.environ.get("SUPABASE_URL"), os.environ.get(
 
 '''
 Account Table functions
-To create an account pass the following in the following format
-/account/create?username=username&first_name=first_name&last_name=last_name&password=password&email=email
+To create an account POST a JSON body to /account/create:
+{ "first_name": ..., "last_name": ..., "password": ..., "email": ... }
 /account/delete?id=int
-/account/login?username=username&password=password
+To log in POST a JSON body to /account/login: { "email": ..., "password": ... }
 /account/get_account?username=username
 '''
-@account_bp.route('/account/create')
+@account_bp.route('/account/create', methods=["POST"])
 def create_account():
-    first_name = request.args.get('first_name', default=None)
-    last_name  = request.args.get('last_name', default=None)
-    password   = request.args.get('password', default=None)
-    email      = request.args.get('email', default=None)
+    body = request.json or {}
+    first_name = body.get('first_name')
+    last_name  = body.get('last_name')
+    password   = body.get('password')
+    email      = body.get('email')
     if None in (first_name, last_name, password, email):
         raise ValueError("Not enough parameters")
     else:
@@ -36,7 +38,7 @@ def create_account():
                 supabase.table("USER_PROFILES")
                 .insert({"FirstName": first_name ,
                             "LastName": last_name ,
-                            "Password": password ,
+                            "Password": generate_password_hash(password) ,
                             "Email": email ,
                             })
                 .execute()
@@ -63,15 +65,16 @@ def delete_account():
             return _return_error_delete(e)
 
 #add password change to email being unique
-@account_bp.route('/account/login')
+@account_bp.route('/account/login', methods=["POST"])
 def login():
-    email = request.args.get('email', default=None)
-    password = request.args.get('password', default=None)
+    body = request.json or {}
+    email = body.get('email')
+    password = body.get('password')
     try:
         response = _get_info_with_email(email)
         if not response.data:
             return jsonify({"Error": "No account found with that email"}), 404
-        if response.data[0]["Password"] == password:
+        if check_password_hash(response.data[0]["Password"], password):
             return response.data, 201
         return jsonify({"Error": "Invalid Password"}), 400
     except APIError as e:

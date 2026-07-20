@@ -22,18 +22,22 @@ export default function AuthPage({ onAuthSuccess }) {
     setSubmitting(true);
 
     try {
-      const params =
+      const body =
         mode === "signin"
-          ? new URLSearchParams({ email: form.email, password: form.password })
-          : new URLSearchParams({
+          ? { email: form.email, password: form.password }
+          : {
               first_name: form.firstName,
               last_name: form.lastName,
               email: form.email,
               password: form.password,
-            });
+            };
       const path = mode === "signin" ? "login" : "create";
 
-      const res = await fetch(`/backend/account/${path}?${params}`);
+      const res = await fetch(`/backend/account/${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
