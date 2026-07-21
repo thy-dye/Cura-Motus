@@ -144,7 +144,7 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
   // camera. { positioned: bool, message: string | null }.
   const [positioning, setPositioning] = useState({ positioned: false, message: null });
 
-  const handleCvFaultDetected = (faultMsg) => {
+  const handleCvFaultDetected = () => {
     // Faults are now reported per-rep via handleCvRepComplete
   };
 
@@ -284,17 +284,6 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
     }).catch(() => {
       // best-effort, don't block the session over a logging failure
     });
-  };
-
-  const goToNextExercise = () => {
-    if (exerciseIndex < session.length - 1) {
-      setExerciseIndex((prev) => prev + 1);
-      setCurrentSet(1);
-      setCvRepCount(0);
-      setFeedbackMessage("");
-    } else if (onNavigate) {
-      onNavigate("home");
-    }
   };
 
   if (loading) {
