@@ -1,7 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import NavBar from "./Navbar.jsx";
 import PoseDetector from "./cv/PoseDetector.jsx";
 import { exerciseLabel } from "./exercises.js";
+
+const speakText = (text) => {
+  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.15;
+    window.speechSynthesis.speak(utterance);
+  }
+};
+
+// Hard-coded motivational lines read out over Speech Synthesis when a set
+// wraps up - no LLM call needed, this is just picked at random.
+const SET_COMPLETE_PHRASES = [
+  "Great job, set complete!",
+  "Nice work, that set is done.",
+  "That's the set. Way to push through.",
+  "Set complete. You're doing great.",
+  "Awesome set! Take a breather.",
+];
+
+const REST_SECONDS = 30;
 
 function CameraFeed({ exerciseId, feedbackMessage, onFeedback, onRepComplete, onFaultDetected, onPositioning, isActive }) {
   return (
@@ -131,12 +152,19 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
   // informational for now (see TODO below on completeSet) - the manual
   // "Log Set" button is still what actually advances the session.
   const [cvRepCount, setCvRepCount] = useState(0);
-  const [sessionState, setSessionState] = useState("active"); // active | summary
+  const [sessionState, setSessionState] = useState("active"); // active | resting | summary
   const [repFeedback, setRepFeedback] = useState([]);
   const [setSummary, setSetSummary] = useState(null);
   // Positioning status from the pose detector, shown as a banner above the
   // camera. { positioned: bool, message: string | null }.
   const [positioning, setPositioning] = useState({ positioned: false, message: null });
+  // Big green "set complete" flash shown for a couple seconds so it's
+  // visible from across the room, not just in the small status bar.
+  const [showCompletionCue, setShowCompletionCue] = useState(false);
+  // Seconds remaining in the rest break between sets/exercises, or null
+  // when we're not resting.
+  const [restSecondsLeft, setRestSecondsLeft] = useState(null);
+  const advancingRef = useRef(false);
 
   const handleCvFaultDetected = (faultMsg) => {
     // Faults are now reported per-rep via handleCvRepComplete
@@ -151,7 +179,17 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
   };
 
   const handleCvRepComplete = (repInfo) => {
-    setCvRepCount((prev) => prev + 1);
+    const exercise = session?.[exerciseIndex];
+    setCvRepCount((prev) => {
+      const nextCount = prev + 1;
+      // Only announce the rep number here if the set isn't finishing on
+      // this rep - the completion phrase below takes over instead, so we
+      // don't talk over ourselves.
+      if (!exercise || nextCount < exercise.reps) {
+        speakText(nextCount.toString());
+      }
+      return nextCount;
+    });
     setRepFeedback((prev) => [
       ...prev,
       {
@@ -161,6 +199,114 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
       },
     ]);
   };
+
+  // Shared by both the auto-detect effect below and the manual "Log Set"
+  // button, so a set wraps up the same way whether the camera hit the rep
+  // target or the user ended it early themselves.
+  const completeSet = () => {
+    setSetSummary({
+      setNumber: currentSet,
+      repFeedback: [...repFeedback],
+    });
+    setSessionState("resting");
+    setFeedbackMessage(`Set ${currentSet} completed. Review your feedback on the right.`);
+
+    const phrase = SET_COMPLETE_PHRASES[Math.floor(Math.random() * SET_COMPLETE_PHRASES.length)];
+    speakText(`${phrase} Take a ${REST_SECONDS} second break.`);
+
+    setShowCompletionCue(true);
+    setRestSecondsLeft(REST_SECONDS);
+  };
+
+  // Once the live rep count hits the target for this set, automatically
+  // wrap the set up - no need to wait on the manual "Log Set" button.
+  useEffect(() => {
+    const exercise = session?.[exerciseIndex];
+    if (!exercise || sessionState !== "active") return;
+    if (cvRepCount < exercise.reps) return;
+    completeSet();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cvRepCount]);
+
+  // Hide the big green completion flash after a couple seconds so it
+  // doesn't sit on screen for the whole rest break.
+  useEffect(() => {
+    if (!showCompletionCue) return;
+    const t = setTimeout(() => setShowCompletionCue(false), 2500);
+    return () => clearTimeout(t);
+  }, [showCompletionCue]);
+
+  // Countdown the rest break, one second at a time, and auto-advance to
+  // the next set (or exercise) once it hits zero.
+  useEffect(() => {
+    if (sessionState !== "resting" || restSecondsLeft === null) return;
+
+    if (restSecondsLeft <= 0) {
+      if (!advancingRef.current) {
+        advancingRef.current = true;
+        advanceAfterRest();
+      }
+      return;
+    }
+
+    const t = setTimeout(() => setRestSecondsLeft((prev) => prev - 1), 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionState, restSecondsLeft]);
+
+  const advanceAfterRest = () => {
+    const exercise = session?.[exerciseIndex];
+    advancingRef.current = false;
+    setRestSecondsLeft(null);
+
+    if (!exercise) return;
+
+    if (currentSet < exercise.sets) {
+      speakText(`Set ${currentSet + 1}, go!`);
+      setCurrentSet((prev) => prev + 1);
+      setCvRepCount(0);
+      setRepFeedback([]);
+      setSetSummary(null);
+      setSessionState("active");
+      setFeedbackMessage("");
+    } else {
+      logCompletion(exercise);
+      if (exerciseIndex < session.length - 1) {
+        speakText("Nice work! On to the next exercise.");
+        setExerciseIndex((prev) => prev + 1);
+        setCurrentSet(1);
+        setCvRepCount(0);
+        setRepFeedback([]);
+        setSetSummary(null);
+        setSessionState("active");
+        setFeedbackMessage("");
+      } else {
+        speakText("Workout complete. Great job today!");
+        if (onNavigate) onNavigate("home");
+      }
+    }
+  };
+
+  const handleSkipRest = () => {
+    if (sessionState !== "resting") return;
+    advancingRef.current = true;
+    setRestSecondsLeft(null);
+    advanceAfterRest();
+  };
+
+  useEffect(() => {
+    const unlockSpeech = () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        const utterance = new SpeechSynthesisUtterance(" ");
+        window.speechSynthesis.speak(utterance);
+      }
+      document.removeEventListener("click", unlockSpeech);
+    };
+    document.addEventListener("click", unlockSpeech);
+    return () => {
+      document.removeEventListener("click", unlockSpeech);
+    };
+  }, []);
 
   useEffect(() => {
     if (sessionProp) return; // explicit session passed in, skip fetching
@@ -212,36 +358,13 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
   }, [user?.id, sessionProp]);
 
   const handleLogSetClick = () => {
-    const exercise = session[exerciseIndex];
     if (sessionState === "active") {
-      setSetSummary({
-        setNumber: currentSet,
-        repFeedback: [...repFeedback],
-      });
-      setSessionState("summary");
-      setFeedbackMessage(`Set ${currentSet} completed. Review your feedback on the right.`);
-    } else {
-      if (currentSet < exercise.sets) {
-        setCurrentSet((prev) => prev + 1);
-        setCvRepCount(0);
-        setRepFeedback([]);
-        setSetSummary(null);
-        setSessionState("active");
-        setFeedbackMessage("");
-      } else {
-        logCompletion(exercise);
-        if (exerciseIndex < session.length - 1) {
-          setExerciseIndex((prev) => prev + 1);
-          setCurrentSet(1);
-          setCvRepCount(0);
-          setRepFeedback([]);
-          setSetSummary(null);
-          setSessionState("active");
-          setFeedbackMessage("");
-        } else if (onNavigate) {
-          onNavigate("home");
-        }
-      }
+      // Lets the user end a set manually (e.g. the camera undercounted
+      // reps) - goes through the same TTS/visual-cue/rest-timer flow as
+      // hitting the rep target automatically.
+      completeSet();
+    } else if (sessionState === "resting") {
+      handleSkipRest();
     }
   };
 
@@ -249,6 +372,9 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
     const exercise = session[exerciseIndex];
     if (sessionState === "active") {
       return "Log Set";
+    }
+    if (sessionState === "resting") {
+      return `Skip Break (${restSecondsLeft ?? REST_SECONDS}s)`;
     }
     if (currentSet < exercise.sets) {
       return `Start Set ${currentSet + 1}`;
@@ -342,27 +468,27 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
 
         {isCamera && sessionState === "active" && (
           positioning.positioned ? (
-            <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-medium text-[var(--secondary-foreground)]">
-              <span
-                className="font-semibold text-emerald-500"
-                style={{ fontFamily: "var(--font-mono)" }}
-              >
-                ✓
-              </span>
-              Positioned — go!
+            <div className="mb-4 text-sm font-bold text-[var(--foreground)]">
+              Positioned, go!
             </div>
           ) : positioning.message ? (
-            <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-medium text-[var(--secondary-foreground)]">
-              <span
-                className="font-semibold text-amber-500"
-                style={{ fontFamily: "var(--font-mono)" }}
-              >
-                ⚠
-              </span>
+            <div className="mb-4 text-sm font-bold text-[var(--foreground)]">
               {positioning.message}
             </div>
           ) : null
         )}
+
+        {/* Big, visible-from-across-the-room flash when a set wraps up. */}
+        {showCompletionCue && (
+          <div className="mb-4 flex items-center justify-center gap-3 rounded-xl border-2 border-emerald-500 bg-emerald-500/15 px-6 py-5 text-2xl font-bold text-emerald-500">
+            <span aria-hidden="true">✓</span>
+            Set {currentSet} complete!
+          </div>
+        )}
+
+          <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--card)] px-6 py-4 text-center text-sm font-semibold text-[var(--secondary-foreground)]">
+            Take a breather. Next set in {restSecondsLeft ?? REST_SECONDS}s
+          </div>
 
         {isCamera ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

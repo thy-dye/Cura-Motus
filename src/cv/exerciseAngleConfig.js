@@ -28,8 +28,8 @@ export const EXERCISE_ANGLE_CONFIG = {
         phase: 'checkpoint-min',
         target: [90, 110],
         label: 'knee bend',
-        feedbackTooShallow: 'Bend your knees more - squat lower.',
-        feedbackTooDeep: "That's too deep - ease up slightly.",
+        feedbackTooShallow: 'Bend your knees more. Squat lower.',
+        feedbackTooDeep: "That's too deep. Ease up slightly.",
         // The primary movement angle for this exercise - only this one
         // increments the rep counter. backAngle below evaluates the same
         // physical rep (it shares the hip-knee bone with kneeAngle), so
@@ -43,7 +43,7 @@ export const EXERCISE_ANGLE_CONFIG = {
         target: [50, 180],
         label: 'back angle',
         feedbackTooShallow: null, // no upper-bound fault for this one
-        feedbackTooDeep: 'Keep your chest up - try not to lean so far forward.',
+        feedbackTooDeep: 'Keep your chest up. Try not to lean so far forward.',
       },
     ],
   },
@@ -59,7 +59,7 @@ export const EXERCISE_ANGLE_CONFIG = {
         target: [80, 100],
         label: 'front knee bend',
         feedbackTooShallow: 'Lower your back knee more toward the floor.',
-        feedbackTooDeep: "That's too deep - ease up slightly.",
+        feedbackTooDeep: "That's too deep. Ease up slightly.",
         countsAsRep: true,
       },
       {
@@ -69,7 +69,7 @@ export const EXERCISE_ANGLE_CONFIG = {
         target: [60, 180],
         label: 'torso angle',
         feedbackTooShallow: null,
-        feedbackTooDeep: 'Keep your torso upright - avoid leaning forward.',
+        feedbackTooDeep: 'Keep your torso upright. Avoid leaning forward.',
       },
     ],
   },
@@ -89,8 +89,8 @@ export const EXERCISE_ANGLE_CONFIG = {
         // than the instant the arm starts dropping - the peak of a raise is
         // a brief, jittery moment otherwise. See createPhaseTracker.
         holdMs: 1000,
-        feedbackTooShallow: 'Raise your arm higher - to shoulder height.',
-        feedbackTooDeep: "That's a bit high - lower to shoulder height.",
+        feedbackTooShallow: 'Raise your arm higher, up to shoulder height.',
+        feedbackTooDeep: "That's a bit high. Lower to shoulder height.",
         countsAsRep: true,
       },
       {

@@ -213,7 +213,7 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, 
         if (unclear.length > 0) {
           reportPositioning(
             false,
-            `We can't see your ${unclear.join(' or ')} clearly - step back so your full body is in frame.`
+            `We can't see your ${unclear.join(' or ')} clearly. Step back so your full body is in frame.`
           )
           return { highlights, phase: 'positioning' }
         }
@@ -322,7 +322,7 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, 
           if (!feedbackMessage) {
             feedbackMessage = wasPass
               ? 'Nice rep! Get ready for the next one.'
-              : "Reset - get ready for your next rep."
+              : "Reset. Get ready for your next rep."
           }
         }
 
