@@ -3,13 +3,15 @@ import NavBar from "./Navbar.jsx";
 import PoseDetector from "./cv/PoseDetector.jsx";
 import { exerciseLabel } from "./exercises.js";
 
-function CameraFeed({ exerciseId, feedbackMessage, onFeedback, onRepComplete }) {
+function CameraFeed({ exerciseId, feedbackMessage, onFeedback, onRepComplete, onFaultDetected, isActive }) {
   return (
     <div className="relative w-full overflow-hidden rounded-xl bg-[var(--foreground)]">
       <PoseDetector
         exerciseId={exerciseId}
         onFeedback={onFeedback}
         onRepComplete={onRepComplete}
+        onFaultDetected={onFaultDetected}
+        isActive={isActive}
       />
 
       {feedbackMessage && (
@@ -21,7 +23,7 @@ function CameraFeed({ exerciseId, feedbackMessage, onFeedback, onRepComplete }) 
   );
 }
 
-function VideoAndSteps({ exercise }) {
+function VideoAndSteps({ exercise, setSummary }) {
   const hasSteps = exercise.steps && exercise.steps.length > 0;
 
   return (
@@ -68,6 +70,44 @@ function VideoAndSteps({ exercise }) {
             No guidance available yet.
           </p>
         )}
+
+        {setSummary && (
+          <div className="mt-5 pt-5 border-t border-[var(--border)] text-left">
+            <h3 className="font-semibold text-[var(--foreground)] mb-3">
+              Set {setSummary.setNumber} Feedback
+            </h3>
+            {setSummary.faults.length === 0 ? (
+              <ul className="flex flex-col gap-2">
+                <li className="flex gap-3 text-sm text-[var(--secondary-foreground)]">
+                  <span
+                    className="font-semibold text-emerald-500"
+                    style={{ fontFamily: "var(--font-mono)" }}
+                  >
+                    ✓
+                  </span>
+                  Perfect form! All reps were performed within the target range.
+                </li>
+              </ul>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {setSummary.faults.map((fault, idx) => (
+                  <li
+                    key={idx}
+                    className="flex gap-3 text-sm text-[var(--secondary-foreground)]"
+                  >
+                    <span
+                      className="font-semibold text-amber-500"
+                      style={{ fontFamily: "var(--font-mono)" }}
+                    >
+                      ⚠
+                    </span>
+                    {fault}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -87,6 +127,16 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
   // informational for now (see TODO below on completeSet) - the manual
   // "Log Set" button is still what actually advances the session.
   const [cvRepCount, setCvRepCount] = useState(0);
+  const [sessionState, setSessionState] = useState("active"); // active | summary
+  const [currentSetFaults, setCurrentSetFaults] = useState([]);
+  const [setSummary, setSetSummary] = useState(null);
+
+  const handleCvFaultDetected = (faultMsg) => {
+    setCurrentSetFaults((prev) => {
+      if (prev.includes(faultMsg)) return prev;
+      return [...prev, faultMsg];
+    });
+  };
 
   const handleCvFeedback = (message) => {
     setFeedbackMessage(message);
@@ -145,19 +195,49 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
     };
   }, [user?.id, sessionProp]);
 
-  // TODO (Malek): once camera-based rep detection exists, it can drive this
-  // automatically per set; this manual "Log Set" button should stay as the
-  // fallback/override for when detection misses something.
-  const completeSet = () => {
+  const handleLogSetClick = () => {
     const exercise = session[exerciseIndex];
-    if (currentSet < exercise.sets) {
-      setCurrentSet((prev) => prev + 1);
-      setCvRepCount(0);
-      setFeedbackMessage(`Set ${currentSet} done. Nice work, get ready for the next set.`);
+    if (sessionState === "active") {
+      setSetSummary({
+        setNumber: currentSet,
+        faults: [...currentSetFaults],
+      });
+      setSessionState("summary");
+      setFeedbackMessage(`Set ${currentSet} completed. Review your feedback on the right.`);
     } else {
-      logCompletion(exercise);
-      goToNextExercise();
+      if (currentSet < exercise.sets) {
+        setCurrentSet((prev) => prev + 1);
+        setCvRepCount(0);
+        setCurrentSetFaults([]);
+        setSetSummary(null);
+        setSessionState("active");
+        setFeedbackMessage("Get in position, then start your set.");
+      } else {
+        logCompletion(exercise);
+        if (exerciseIndex < session.length - 1) {
+          setExerciseIndex((prev) => prev + 1);
+          setCurrentSet(1);
+          setCvRepCount(0);
+          setCurrentSetFaults([]);
+          setSetSummary(null);
+          setSessionState("active");
+          setFeedbackMessage("Get in position, then start your set.");
+        } else if (onNavigate) {
+          onNavigate("home");
+        }
+      }
     }
+  };
+
+  const getButtonLabel = () => {
+    const exercise = session[exerciseIndex];
+    if (sessionState === "active") {
+      return "Log Set";
+    }
+    if (currentSet < exercise.sets) {
+      return `Start Set ${currentSet + 1}`;
+    }
+    return exerciseIndex < session.length - 1 ? "Next Exercise" : "Finish Session";
   };
 
   const logCompletion = (exercise) => {
@@ -251,12 +331,14 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
               feedbackMessage={feedbackMessage}
               onFeedback={handleCvFeedback}
               onRepComplete={handleCvRepComplete}
+              onFaultDetected={handleCvFaultDetected}
+              isActive={sessionState === "active"}
             />
-            <VideoAndSteps exercise={exercise} />
+            <VideoAndSteps exercise={exercise} setSummary={setSummary} />
           </div>
         ) : (
           <div className="max-w-xl mx-auto">
-            <VideoAndSteps exercise={exercise} />
+            <VideoAndSteps exercise={exercise} setSummary={setSummary} />
           </div>
         )}
 
@@ -271,10 +353,10 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
 
           <button
             type="button"
-            onClick={completeSet}
+            onClick={handleLogSetClick}
             className="rounded-lg bg-[var(--primary)] px-6 py-2.5 text-sm font-semibold text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] transition-colors"
           >
-            Log Set
+            {getButtonLabel()}
           </button>
         </div>
       </main>

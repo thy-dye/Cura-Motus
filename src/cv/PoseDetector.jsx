@@ -39,7 +39,7 @@ const MIN_HIGHLIGHT_MS = 1200
  *   onRepComplete - (angleName: string) => void, called each time a
  *                  checkpoint angle completes a full rep cycle.
  */
-function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
+function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, isActive = true }) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const poseLandmarkerRef = useRef(null)
@@ -53,6 +53,7 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
 
   // Angle-detection state that needs to survive across frames but
   // shouldn't trigger re-renders - refs, reset whenever exerciseId changes.
+  const exerciseIdRef = useRef(exerciseId)
   const activeSideRef = useRef(null) // 'left' | 'right' | null (not locked yet)
   const trackersRef = useRef({}) // angleName -> tracker from createPhaseTracker
   const smoothersRef = useRef({}) // angleName -> smoothing fn from createAngleSmoother
@@ -60,6 +61,15 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
   const jointStatusSetAtRef = useRef({}) // angleName -> performance.now() when status was last set
   const onFeedbackRef = useRef(onFeedback)
   const onRepCompleteRef = useRef(onRepComplete)
+  const onFaultDetectedRef = useRef(onFaultDetected)
+  const isActiveRef = useRef(isActive)
+
+  useEffect(() => {
+    onFaultDetectedRef.current = onFaultDetected
+  }, [onFaultDetected])
+  useEffect(() => {
+    isActiveRef.current = isActive
+  }, [isActive])
 
   useEffect(() => {
     onFeedbackRef.current = onFeedback
@@ -71,6 +81,7 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
   // Reset all angle-tracking state whenever the exercise changes (new
   // set of a different exercise = fresh baseline, fresh side lock).
   useEffect(() => {
+    exerciseIdRef.current = exerciseId
     activeSideRef.current = null
     const config = EXERCISE_ANGLE_CONFIG[exerciseId]
     trackersRef.current = {}
@@ -148,14 +159,14 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
      * being judged, not just which single joint.
      */
     function processAngles(worldLandmarks, imageLandmarks) {
-      const config = EXERCISE_ANGLE_CONFIG[exerciseId]
+      const config = EXERCISE_ANGLE_CONFIG[exerciseIdRef.current]
       const highlights = []
       if (!config) return highlights
 
       // Lock which side of the body we're tracking, once, based on
       // whichever side is more visible - avoids flip-flopping mid-session.
       if (!activeSideRef.current) {
-        const requiredJoints = jointsUsedBy(exerciseId)
+        const requiredJoints = jointsUsedBy(exerciseIdRef.current)
         const side = pickDominantSide(worldLandmarks, requiredJoints)
         if (!side) {
           // Give a specific reason instead of just repeating the generic
@@ -191,16 +202,24 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
           jointStatusRef.current[angleDef.name] = result.pass ? 'pass' : 'fail'
           jointStatusSetAtRef.current[angleDef.name] = performance.now()
 
-          if (!result.pass && !feedbackMessage) {
+          if (!result.pass) {
             // A smaller angle than the target range means more joint
             // flexion than intended (e.g. squatting deeper than the
             // target knee angle) - that's the "too deep" fault, not
             // "too shallow". A larger angle means less flexion than
             // intended (didn't bend enough) - "too shallow".
             const tooDeep = result.checkpointAngle < angleDef.target[0]
-            feedbackMessage = tooDeep
+            const faultMsg = tooDeep
               ? angleDef.feedbackTooDeep
               : angleDef.feedbackTooShallow
+
+            if (faultMsg) {
+              onFaultDetectedRef.current?.(faultMsg)
+            }
+
+            if (!feedbackMessage) {
+              feedbackMessage = faultMsg
+            }
           }
         }
 
@@ -303,7 +322,7 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete }) {
                 (lm) => (lm.visibility ?? 1) > 0.5
               ).length
 
-              if (worldLandmarks && exerciseId) {
+              if (worldLandmarks && exerciseIdRef.current && isActiveRef.current) {
                 highlights = processAngles(worldLandmarks, landmarks)
               }
             }
