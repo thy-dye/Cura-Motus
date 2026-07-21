@@ -1,4 +1,10 @@
+
+<img src="images/Logo.png" align="left" width="60" height="60" alt="Cura-Motus logo">
+
 # Cura-Motus
+
+
+<br clear="left"/>
 
 Cura-Motus("Care in Motion") is a web app that uses real-time camera-based pose estimation to help at-home physical therapy patients stay consistent with their prescribed exercises. Physical therapy is expensive, and most patients who train unsupervised at home have no reliable way to stay motivated or track their effort. Cura-Motus counts each rep as it happens, calls out the count out loud, and keeos users motivated to finish their sets, while pointing them to a linked YouTube video tutorial for proper exercise form. It generates a personalized AI exercise plan from each user's onboarding inpouts and is built as a supplenment to professional care, not a replacement.
 
