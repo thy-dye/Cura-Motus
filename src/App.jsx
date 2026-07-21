@@ -16,6 +16,7 @@ function loadStoredUser() {
   }
 }
 
+
 function App() {
   const [user, setUser] = useState(loadStoredUser);
   const [page, setPage] = useState("home");
@@ -38,6 +39,7 @@ function App() {
       // nothing to clean up if storage was never available
     }
   };
+
 
   if (!user) {
     return <AuthPage onAuthSuccess={handleAuthSuccess} />;

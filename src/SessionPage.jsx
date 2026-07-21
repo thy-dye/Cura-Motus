@@ -3,10 +3,17 @@ import NavBar from "./Navbar.jsx";
 import PoseDetector from "./cv/PoseDetector.jsx";
 import { exerciseLabel, isLockedExercise, exerciseSteps } from "./exercises.js";
 
-function CameraFeed({ feedbackMessage }) {
+function CameraFeed({ exerciseId, feedbackMessage, onFeedback, onRepComplete, onFaultDetected, onPositioning, isActive }) {
   return (
     <div className="relative w-full overflow-hidden rounded-xl bg-[var(--foreground)]">
-      <PoseDetector />
+      <PoseDetector
+        exerciseId={exerciseId}
+        onFeedback={onFeedback}
+        onRepComplete={onRepComplete}
+        onFaultDetected={onFaultDetected}
+        onPositioning={onPositioning}
+        isActive={isActive}
+      />
 
       {feedbackMessage && (
         <div className="absolute bottom-3 left-3 right-3 rounded-lg bg-black/60 px-4 py-2 text-sm font-medium text-white">
@@ -17,7 +24,7 @@ function CameraFeed({ feedbackMessage }) {
   );
 }
 
-function VideoAndSteps({ exercise }) {
+function VideoAndSteps({ exercise, setSummary }) {
   const hasSteps = exercise.steps && exercise.steps.length > 0;
 
   return (
@@ -70,6 +77,46 @@ function VideoAndSteps({ exercise }) {
             No guidance available yet.
           </p>
         )}
+
+        {setSummary && (
+          <div className="mt-5 pt-5 border-t border-[var(--border)] text-left">
+            <h3 className="font-semibold text-[var(--foreground)] mb-3">
+              Set {setSummary.setNumber} Feedback
+            </h3>
+            {setSummary.repFeedback.length === 0 ? (
+              <ul className="flex flex-col gap-2">
+                <li className="flex gap-3 text-sm text-[var(--secondary-foreground)]">
+                  <span
+                    className="font-semibold text-emerald-500"
+                    style={{ fontFamily: "var(--font-mono)" }}
+                  >
+                    ✓
+                  </span>
+                  No reps completed yet.
+                </li>
+              </ul>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {setSummary.repFeedback.map((rep, idx) => (
+                  <li
+                    key={idx}
+                    className="flex gap-3 text-sm text-[var(--secondary-foreground)]"
+                  >
+                    <span
+                      className={`font-semibold ${
+                        rep.passed ? 'text-emerald-500' : 'text-amber-500'
+                      }`}
+                      style={{ fontFamily: "var(--font-mono)" }}
+                    >
+                      {rep.passed ? '✓' : '⚠'}
+                    </span>
+                    <span>Rep {rep.repNumber}: {rep.message}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -82,9 +129,44 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
 
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [currentSet, setCurrentSet] = useState(1);
-  const [feedbackMessage, setFeedbackMessage] = useState(
-    "Get in position, then start your set."
-  );
+  // The status bar under the video is now only for live form feedback
+  // (rep confirmations, fault corrections). Positioning prompts live in
+  // the banner above the camera, driven by onPositioning.
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  // Live rep count from the CV angle tracker for the current set. This is
+  // informational for now (see TODO below on completeSet) - the manual
+  // "Log Set" button is still what actually advances the session.
+  const [cvRepCount, setCvRepCount] = useState(0);
+  const [sessionState, setSessionState] = useState("active"); // active | summary
+  const [repFeedback, setRepFeedback] = useState([]);
+  const [setSummary, setSetSummary] = useState(null);
+  // Positioning status from the pose detector, shown as a banner above the
+  // camera. { positioned: bool, message: string | null }.
+  const [positioning, setPositioning] = useState({ positioned: false, message: null });
+
+  const handleCvFaultDetected = (faultMsg) => {
+    // Faults are now reported per-rep via handleCvRepComplete
+  };
+
+  const handleCvFeedback = (message) => {
+    setFeedbackMessage(message);
+  };
+
+  const handleCvPositioning = (status) => {
+    setPositioning(status);
+  };
+
+  const handleCvRepComplete = (repInfo) => {
+    setCvRepCount((prev) => prev + 1);
+    setRepFeedback((prev) => [
+      ...prev,
+      {
+        repNumber: prev.length + 1,
+        passed: repInfo.passed,
+        message: repInfo.message,
+      },
+    ]);
+  };
 
   useEffect(() => {
     if (sessionProp) return; // explicit session passed in, skip fetching
@@ -139,18 +221,49 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
     };
   }, [user?.id, sessionProp]);
 
-  // TODO (Malek): once camera-based rep detection exists, it can drive this
-  // automatically per set; this manual "Log Set" button should stay as the
-  // fallback/override for when detection misses something.
-  const completeSet = () => {
+  const handleLogSetClick = () => {
     const exercise = session[exerciseIndex];
-    if (currentSet < exercise.sets) {
-      setCurrentSet((prev) => prev + 1);
-      setFeedbackMessage(`Set ${currentSet} done. Nice work, get ready for the next set.`);
+    if (sessionState === "active") {
+      setSetSummary({
+        setNumber: currentSet,
+        repFeedback: [...repFeedback],
+      });
+      setSessionState("summary");
+      setFeedbackMessage(`Set ${currentSet} completed. Review your feedback on the right.`);
     } else {
-      logCompletion(exercise);
-      goToNextExercise();
+      if (currentSet < exercise.sets) {
+        setCurrentSet((prev) => prev + 1);
+        setCvRepCount(0);
+        setRepFeedback([]);
+        setSetSummary(null);
+        setSessionState("active");
+        setFeedbackMessage("");
+      } else {
+        logCompletion(exercise);
+        if (exerciseIndex < session.length - 1) {
+          setExerciseIndex((prev) => prev + 1);
+          setCurrentSet(1);
+          setCvRepCount(0);
+          setRepFeedback([]);
+          setSetSummary(null);
+          setSessionState("active");
+          setFeedbackMessage("");
+        } else if (onNavigate) {
+          onNavigate("home");
+        }
+      }
     }
+  };
+
+  const getButtonLabel = () => {
+    const exercise = session[exerciseIndex];
+    if (sessionState === "active") {
+      return "Log Set";
+    }
+    if (currentSet < exercise.sets) {
+      return `Start Set ${currentSet + 1}`;
+    }
+    return exerciseIndex < session.length - 1 ? "Next Exercise" : "Finish Session";
   };
 
   const logCompletion = (exercise) => {
@@ -177,7 +290,8 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
     if (exerciseIndex < session.length - 1) {
       setExerciseIndex((prev) => prev + 1);
       setCurrentSet(1);
-      setFeedbackMessage("Get in position, then start your set.");
+      setCvRepCount(0);
+      setFeedbackMessage("");
     } else if (onNavigate) {
       onNavigate("home");
     }
@@ -238,18 +352,50 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
             className="rounded-xl bg-[var(--primary)] px-6 py-3 text-lg font-bold text-[var(--primary-foreground)] shadow-sm"
             style={{ fontFamily: "var(--font-mono)" }}
           >
-            Set {currentSet} / {exercise.sets} &nbsp;·&nbsp; {exercise.reps} reps
+            Set {currentSet} / {exercise.sets} &nbsp;·&nbsp; {cvRepCount}/{exercise.reps} reps
           </div>
         </div>
 
+        {isCamera && sessionState === "active" && (
+          positioning.positioned ? (
+            <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-medium text-[var(--secondary-foreground)]">
+              <span
+                className="font-semibold text-emerald-500"
+                style={{ fontFamily: "var(--font-mono)" }}
+              >
+                ✓
+              </span>
+              Positioned — go!
+            </div>
+          ) : positioning.message ? (
+            <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-medium text-[var(--secondary-foreground)]">
+              <span
+                className="font-semibold text-amber-500"
+                style={{ fontFamily: "var(--font-mono)" }}
+              >
+                ⚠
+              </span>
+              {positioning.message}
+            </div>
+          ) : null
+        )}
+
         {isCamera ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <CameraFeed feedbackMessage={feedbackMessage} />
-            <VideoAndSteps exercise={exercise} />
+            <CameraFeed
+              exerciseId={exercise.exerciseId}
+              feedbackMessage={feedbackMessage}
+              onFeedback={handleCvFeedback}
+              onRepComplete={handleCvRepComplete}
+              onFaultDetected={handleCvFaultDetected}
+              onPositioning={handleCvPositioning}
+              isActive={sessionState === "active"}
+            />
+            <VideoAndSteps exercise={exercise} setSummary={setSummary} />
           </div>
         ) : (
           <div className="max-w-xl mx-auto">
-            <VideoAndSteps exercise={exercise} />
+            <VideoAndSteps exercise={exercise} setSummary={setSummary} />
           </div>
         )}
 
@@ -264,10 +410,10 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
 
           <button
             type="button"
-            onClick={completeSet}
+            onClick={handleLogSetClick}
             className="rounded-lg bg-[var(--primary)] px-6 py-2.5 text-sm font-semibold text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] transition-colors"
           >
-            Log Set
+            {getButtonLabel()}
           </button>
         </div>
       </main>
