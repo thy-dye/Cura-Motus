@@ -53,3 +53,8 @@ For questions, suggestions, or collaborative opportunities, please contact:
 ### Ty Torres
 - Email: [Tytorres55@gmail.com](mailto:Tytorres55@gmail.com)
 - GitHub : [thy-dye](https://github.com/thy-dye)
+
+### Eva King-Senior
+- Email: [evakingsr@gmail.com](mailto:evakingsr@gmail.com)
+- GitHub : [evakingsr](https://github.com/evakingsr)
+
