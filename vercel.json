@@ -4,7 +4,7 @@
     { "src": "backend/app.py", "use": "@vercel/python" }
   ],
   "routes": [
-    { "src": "/(account|activities|completion)/(.*)", "dest": "backend/app.py" },
+    { "src": "/backend/(account|activities|completion)/(.*)", "dest": "backend/app.py" },
     { "src": "/(.*)", "dest": "/$1" }
   ]
 }
