@@ -49,18 +49,24 @@ export default function PlanWizard({
 }) {
   return (
     <>
-      <div className="flex items-center gap-3 mb-8">
-        {Array.from({ length: totalSteps }, (_, dotIndex) => dotIndex).map((dotIndex) => (
-          <div
-            key={dotIndex}
-            className={`h-3 w-3 rounded-full transition-colors ${
-              dotIndex <= currentIndex
-                ? "bg-[var(--primary)]"
-                : "bg-[var(--secondary)] border border-[var(--border)]"
-            }`}
-          />
-        ))}
-      </div>
+      {/* Total step count depends on which mode gets chosen (2 steps for
+          general, 4 for injury/custom), so there's nothing meaningful to
+          show until that choice is made - showing dots on the mode-select
+          screen itself would misrepresent how many steps are left. */}
+      {step !== "mode" && (
+        <div className="flex items-center gap-3 mb-8">
+          {Array.from({ length: totalSteps }, (_, dotIndex) => dotIndex).map((dotIndex) => (
+            <div
+              key={dotIndex}
+              className={`h-3 w-3 rounded-full transition-colors ${
+                dotIndex <= currentIndex
+                  ? "bg-[var(--primary)]"
+                  : "bg-[var(--secondary)] border border-[var(--border)]"
+              }`}
+            />
+          ))}
+        </div>
+      )}
 
       {step === "mode" && (
         <div>

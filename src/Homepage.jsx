@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import NavBar from "./Navbar.jsx";
+import WeekGrid from "./WeekGrid.jsx";
 import { exerciseLabel, isLockedExercise } from "./exercises.js";
+import { dayKey, calculateStreak } from "./streak.js";
 
 export default function HomePage({ user, userName = "User", onNavigate, onLogout, theme, onToggleTheme }) {
   const [exercises, setExercises] = useState([]);
+  const [completions, setCompletions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -29,21 +32,22 @@ export default function HomePage({ user, userName = "User", onNavigate, onLogout
         }
         const plan = activitiesData?.[0]?.Exercises?.plan || [];
 
-        // Completions are supplementary (just for checkmarks). A failure
-        // here shouldn't block showing the exercise list itself.
+        // Completions are supplementary (checkmarks + the week grid). A
+        // failure here shouldn't block showing the exercise list itself.
         let completedToday = new Set();
         try {
           const completionsRes = await fetch(
             `/backend/completion/get_user_exercises?user_id=${user.id}`
           );
           if (completionsRes.ok) {
-            const completions = await completionsRes.json().catch(() => []);
+            const fetchedCompletions = (await completionsRes.json().catch(() => [])) || [];
             const today = new Date().toDateString();
             completedToday = new Set(
-              (completions || [])
+              fetchedCompletions
                 .filter((c) => new Date(c.Completion).toDateString() === today)
                 .map((c) => c.ExerciseName)
             );
+            if (!cancelled) setCompletions(fetchedCompletions);
           }
         } catch {
           // ignore, exercises just show as not-done
@@ -78,6 +82,9 @@ export default function HomePage({ user, userName = "User", onNavigate, onLogout
 
   const nextExercise = exercises.find((e) => !e.done);
 
+  const completedDayKeys = new Set(completions.map((c) => dayKey(c.Completion)));
+  const streak = calculateStreak(completedDayKeys);
+
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <NavBar
@@ -109,6 +116,8 @@ export default function HomePage({ user, userName = "User", onNavigate, onLogout
             Edit my Plan
           </button>
         </div>
+
+        {!loading && !error && <WeekGrid completedDayKeys={completedDayKeys} streak={streak} />}
 
         {loading ? (
           <p className="text-sm text-[var(--muted-foreground)]">

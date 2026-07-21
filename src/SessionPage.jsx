@@ -72,19 +72,19 @@ function VideoAndSteps({ exercise }) {
       <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
         <h3 className="font-semibold text-[var(--foreground)] mb-3">Steps</h3>
         {hasSteps ? (
-          <ol className="flex flex-col gap-2">
+          <ol className="flex flex-col gap-4">
             {exercise.steps.map((step, i) => (
               <li
                 key={i}
-                className="flex gap-3 text-sm text-[var(--secondary-foreground)]"
+                className="flex gap-3 text-[15px] leading-relaxed text-[var(--secondary-foreground)]"
               >
                 <span
-                  className="font-semibold text-[var(--primary)]"
+                  className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[var(--primary)]/10 text-sm font-semibold text-[var(--primary)]"
                   style={{ fontFamily: "var(--font-mono)" }}
                 >
                   {i + 1}
                 </span>
-                {step}
+                <span className="pt-0.5">{step}</span>
               </li>
             ))}
           </ol>

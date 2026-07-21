@@ -1,47 +1,8 @@
 import { useEffect, useState } from "react";
 import NavBar from "./Navbar.jsx";
+import WeekGrid from "./WeekGrid.jsx";
 import { exerciseLabel } from "./exercises.js";
-
-const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-function dayKey(dateLike) {
-  return new Date(dateLike).toDateString();
-}
-
-function startOfWeek(date) {
-  const d = new Date(date);
-  const mondayOffset = (d.getDay() + 6) % 7; // Sunday=0 -> 6, Monday=1 -> 0, ...
-  d.setDate(d.getDate() - mondayOffset);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function getWeekDays() {
-  const monday = startOfWeek(new Date());
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    return d;
-  });
-}
-
-function calculateStreak(completedDayKeys) {
-  const today = new Date();
-  const cursor = new Date(today);
-
-  // If nothing's logged yet today, the streak isn't broken until today
-  // actually ends, so start counting from yesterday instead.
-  if (!completedDayKeys.has(dayKey(today))) {
-    cursor.setDate(cursor.getDate() - 1);
-  }
-
-  let streak = 0;
-  while (completedDayKeys.has(dayKey(cursor))) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
-}
+import { dayKey, calculateStreak } from "./streak.js";
 
 function buildBreakdown(completions) {
   const byExercise = new Map();
@@ -103,9 +64,7 @@ export default function ProgressPage({ user, onNavigate, onLogout, theme, onTogg
 
   const completedDayKeys = new Set(completions.map((c) => dayKey(c.Completion)));
   const streak = calculateStreak(completedDayKeys);
-  const weekDays = getWeekDays();
   const breakdown = buildBreakdown(completions);
-  const todayKey = dayKey(new Date());
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
@@ -175,34 +134,7 @@ export default function ProgressPage({ user, onNavigate, onLogout, theme, onTogg
               </div>
             </div>
 
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 mb-8">
-              <h2 className="font-semibold text-[var(--foreground)] mb-4">
-                This Week
-              </h2>
-              <div className="grid grid-cols-7 gap-2">
-                {weekDays.map((day, i) => {
-                  const key = dayKey(day);
-                  const active = completedDayKeys.has(key);
-                  const isToday = key === todayKey;
-                  return (
-                    <div key={i} className="flex flex-col items-center gap-2">
-                      <span className="text-xs text-[var(--muted-foreground)]">
-                        {WEEKDAY_LABELS[i]}
-                      </span>
-                      <div
-                        className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium transition-colors ${
-                          active
-                            ? "bg-[var(--primary)] text-[var(--primary-foreground)]"
-                            : "bg-[var(--secondary)] text-[var(--muted-foreground)]"
-                        } ${isToday ? "ring-2 ring-[var(--ring)] ring-offset-2 ring-offset-[var(--card)]" : ""}`}
-                      >
-                        {day.getDate()}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            <WeekGrid completedDayKeys={completedDayKeys} />
 
             <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
               <div className="px-6 py-4 border-b border-[var(--border)]">
