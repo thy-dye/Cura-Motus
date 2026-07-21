@@ -16,10 +16,10 @@ from services.gemini_plan import gemini_plan_bp
 app = Flask(__name__)
 CORS(app)
 
-app.register_blueprint(account_bp)
-app.register_blueprint(core_bp)
-app.register_blueprint(exercise_video_bp)
-app.register_blueprint(gemini_plan_bp)
+app.register_blueprint(account_bp, url_prefix="/backend")
+app.register_blueprint(core_bp, url_prefix="/backend")
+app.register_blueprint(exercise_video_bp, url_prefix="/backend")
+app.register_blueprint(gemini_plan_bp, url_prefix="/backend")
 
 if __name__ == "__main__":
     app.run(debug=True)
