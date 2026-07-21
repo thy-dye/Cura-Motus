@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./AuthPage.css";
+import logo from "./assets/logo.png";
 
 export default function AuthPage({ onAuthSuccess }) {
   const [mode, setMode] = useState("signin"); // "signin" | "signup"
@@ -67,6 +68,7 @@ export default function AuthPage({ onAuthSuccess }) {
   return (
     <div className="auth-page">
       <div className="auth-content">
+        <img src={logo} alt="Cura Motus" className="auth-logo" />
         <h1 className="auth-wordmark">Cura Motus</h1>
         <p className="auth-tagline">Guided recovery, one movement at a time</p>
 

@@ -1,3 +1,5 @@
+import logo from "./assets/logo.png";
+
 const NAV_ITEMS = [
   { label: "Home", path: "home" },
   { label: "My Plan", path: "plan" },
@@ -8,7 +10,8 @@ const NAV_ITEMS = [
 export default function NavBar({ activePath, onNavigate, onLogout }) {
   return (
     <nav className="flex items-center gap-8 border-b border-[var(--border)] bg-[var(--card)] px-8 py-4">
-      <span className="font-semibold text-lg tracking-tight text-[var(--foreground)]">
+      <span className="flex items-center gap-2 font-semibold text-lg tracking-tight text-[var(--foreground)]">
+        <img src={logo} alt="" className="h-12 w-12" />
         Cura Motus
       </span>
 
