@@ -10,12 +10,26 @@ const SPORT_OPTIONS = [
   "None",
 ];
 
+const PAST_INJURY_OPTIONS = [
+  "ACL Tear",
+  "Rotator Cuff Injury",
+  "Sprained Ankle",
+  "Lower Back Strain",
+  "Tennis Elbow",
+  "Knee Surgery",
+  "Shoulder Surgery",
+  "Stress Fracture",
+  "Other",
+  "None",
+];
+
 export default function PlanWizard({
   mode,
   step,
   currentIndex,
   exercises,
   sports,
+  pastInjuries,
   description,
   error,
   onChooseMode,
@@ -24,6 +38,7 @@ export default function PlanWizard({
   onAddExerciseRow,
   onRemoveExerciseRow,
   onToggleSport,
+  onTogglePastInjury,
   onDescriptionChange,
   onContinue,
   onSave,
@@ -177,6 +192,29 @@ export default function PlanWizard({
 
           {mode === "general" && (
             <div>
+              <p className="text-sm font-medium text-[var(--muted-foreground)] mb-3">
+                Past Injuries or Conditions
+              </p>
+              <div className="flex flex-wrap gap-2 mb-6">
+                {PAST_INJURY_OPTIONS.map((injury) => {
+                  const selected = pastInjuries.includes(injury);
+                  return (
+                    <button
+                      key={injury}
+                      type="button"
+                      onClick={() => onTogglePastInjury(injury)}
+                      className={`rounded-full px-4 py-2 text-sm font-medium border transition-colors ${
+                        selected
+                          ? "bg-[var(--primary)] border-[var(--primary)] text-[var(--primary-foreground)]"
+                          : "border-[var(--border)] bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:border-[var(--primary)]"
+                      }`}
+                    >
+                      {injury}
+                    </button>
+                  );
+                })}
+              </div>
+
               <p className="text-sm font-medium text-[var(--muted-foreground)] mb-2">
                 What would you like to work on?
               </p>
