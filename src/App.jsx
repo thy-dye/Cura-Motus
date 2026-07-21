@@ -1,43 +1,80 @@
-import { useState, useEffect } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useState } from "react";
+import AuthPage from "./AuthPage.jsx";
+import HomePage from "./Homepage.jsx";
+import PlanPage from "./PlanPage.jsx";
+import SessionPage from "./SessionPage.jsx";
+import ProgressPage from "./ProgressPage.jsx";
 
-function App() {
-  const [count, setCount] = useState(0)
-  const [currentTime, setCurrentTime] = useState(0);
+const STORAGE_KEY = "curamotus_user";
 
-  useEffect(() => {
-    fetch('/backend/temp').then(res => res.json()).then(data => {
-      setCurrentTime(data.time);
-    });
-  }, []);
-
-  return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>The current time is {new Date(currentTime * 1000).toLocaleString()}.</p>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+function loadStoredUser() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
-export default App
+function App() {
+  const [user, setUser] = useState(loadStoredUser);
+  const [page, setPage] = useState("home");
+
+  const handleAuthSuccess = (nextUser) => {
+    setUser(nextUser);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextUser));
+    } catch {
+      // e.g. private browsing with storage disabled, session just won't persist
+    }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setPage("home");
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // nothing to clean up if storage was never available
+    }
+  };
+
+  if (!user) {
+    return <AuthPage onAuthSuccess={handleAuthSuccess} />;
+  }
+
+  switch (page) {
+    case "home":
+      return (
+        <HomePage
+          user={user}
+          userName={user.firstName}
+          onNavigate={setPage}
+          onLogout={handleLogout}
+        />
+      );
+    case "plan":
+      return (
+        <PlanPage user={user} onNavigate={setPage} onLogout={handleLogout} />
+      );
+    case "session":
+      return (
+        <SessionPage user={user} onNavigate={setPage} onLogout={handleLogout} />
+      );
+    case "progress":
+      return (
+        <ProgressPage user={user} onNavigate={setPage} onLogout={handleLogout} />
+      );
+    default:
+      return (
+        <div style={{ padding: 40 }}>
+          <p>"{page}" page isn't built yet.</p>
+          <button type="button" onClick={() => setPage("home")}>
+            Back to Home
+          </button>
+        </div>
+      );
+  }
+}
+
+export default App;

@@ -24,4 +24,7 @@ dist-ssr
 *.sw?
 
 venv
-__pychache__.env .env
+__pycache__/
+.env
+.vercel
+.env*
