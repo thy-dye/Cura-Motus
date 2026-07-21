@@ -76,7 +76,8 @@ export const EXERCISE_ANGLE_CONFIG = {
 
   'shoulder-raise': {
     cameraView: 'front',
-    instructions: 'Face the camera directly, upper body in frame.',
+    instructions:
+      'Turn slightly so one shoulder is a bit closer to the camera, upper body in frame. Raise to shoulder height and hold for a second.',
     angles: [
       {
         name: 'armElevationAngle',
@@ -84,6 +85,10 @@ export const EXERCISE_ANGLE_CONFIG = {
         phase: 'checkpoint-max',
         target: [80, 100],
         label: 'arm height',
+        // Grade the position once it's been held at the top for ~1s, rather
+        // than the instant the arm starts dropping - the peak of a raise is
+        // a brief, jittery moment otherwise. See createPhaseTracker.
+        holdMs: 1000,
         feedbackTooShallow: 'Raise your arm higher - to shoulder height.',
         feedbackTooDeep: "That's a bit high - lower to shoulder height.",
         countsAsRep: true,

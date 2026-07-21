@@ -35,9 +35,16 @@ const REBOUND_DELTA = 12; // degrees back off the extreme before we consider the
 const RETURN_DELTA = 12; // degrees back near baseline before we consider the rep "finished"
 const BASELINE_FRAMES = 10; // frames used to average out an initial standing/resting baseline
 const MIN_ENGAGED_FRAMES = 6; // consecutive frames of real movement required before a checkpoint counts
+const IMPROVE_EPSILON = 3; // degrees; peak changes smaller than this count as "holding", not still moving
 
 export function createPhaseTracker(angleDef) {
-  const { phase, target } = angleDef;
+  // `holdMs` (optional): if set, once the user reaches the top/bottom of
+  // the rep and holds it steady for this long, we grade that sustained
+  // position instead of the single instant they start moving back. This
+  // makes grading far less jittery for exercises where the checkpoint is a
+  // brief peak (e.g. a shoulder raise held at shoulder height). Exercises
+  // without holdMs keep the original "grade on rebound" behavior.
+  const { phase, target, holdMs } = angleDef;
 
   if (phase === 'continuous') {
     return {
@@ -57,6 +64,7 @@ export function createPhaseTracker(angleDef) {
   let state = 'establishing-baseline'; // -> 'waiting' -> 'engaged' -> 'evaluated'
   let extremeSeen = null;
   let framesEngaged = 0;
+  let lastImprovedAt = null; // timestamp the peak last moved further out (for hold timing)
 
   function reset() {
     baseline = null;
@@ -64,9 +72,10 @@ export function createPhaseTracker(angleDef) {
     state = 'establishing-baseline';
     extremeSeen = null;
     framesEngaged = 0;
+    lastImprovedAt = null;
   }
 
-  function update(angle) {
+  function update(angle, now) {
     if (angle == null) return { evaluated: false, repCompleted: false };
 
     if (state === 'establishing-baseline') {
@@ -87,22 +96,40 @@ export function createPhaseTracker(angleDef) {
         state = 'engaged';
         extremeSeen = angle;
         framesEngaged = 1;
+        lastImprovedAt = now;
       }
       return { evaluated: false, repCompleted: false };
     }
 
     if (state === 'engaged') {
-      extremeSeen = isMin ? Math.min(extremeSeen, angle) : Math.max(extremeSeen, angle);
+      const newExtreme = isMin ? Math.min(extremeSeen, angle) : Math.max(extremeSeen, angle);
+      // Only reset the hold clock when the peak moves out meaningfully -
+      // sub-epsilon jitter at the top should count as holding, not moving.
+      if (Math.abs(newExtreme - extremeSeen) >= IMPROVE_EPSILON) {
+        lastImprovedAt = now;
+      }
+      extremeSeen = newExtreme;
       framesEngaged += 1;
 
       const reboundedPastCheckpoint = isMin
         ? angle > extremeSeen + REBOUND_DELTA
         : angle < extremeSeen - REBOUND_DELTA;
 
-      // Require the movement to have been sustained for a minimum number
-      // of frames, not just a single noisy spike that immediately
-      // rebounds - that's what was causing false rep counts.
-      if (reboundedPastCheckpoint && framesEngaged >= MIN_ENGAGED_FRAMES) {
+      // Hold-to-grade: once the peak stops improving and is held steady for
+      // holdMs, grade that sustained reading right there - no need to wait
+      // for the user to start coming back down, and far less jittery than
+      // grading a single instant. Only active when holdMs is configured and
+      // we actually have timestamps.
+      const held =
+        holdMs != null &&
+        now != null &&
+        lastImprovedAt != null &&
+        now - lastImprovedAt >= holdMs;
+
+      // Require the movement to have been sustained for a minimum number of
+      // frames either way, not a single noisy spike - that was the old
+      // false-rep-count cause.
+      if (framesEngaged >= MIN_ENGAGED_FRAMES && (reboundedPastCheckpoint || held)) {
         state = 'evaluated';
         const pass = extremeSeen >= target[0] && extremeSeen <= target[1];
         return {
@@ -113,13 +140,14 @@ export function createPhaseTracker(angleDef) {
         };
       }
 
-      // Didn't sustain long enough to count as a real rep attempt - treat
-      // it as noise and go back to waiting rather than staying stuck
-      // "engaged" indefinitely on a small wobble.
+      // Rebounded before it was sustained long enough - treat it as noise
+      // and go back to waiting rather than staying stuck "engaged" on a
+      // small wobble.
       if (reboundedPastCheckpoint) {
         state = 'waiting';
         extremeSeen = null;
         framesEngaged = 0;
+        lastImprovedAt = null;
       }
       return { evaluated: false, repCompleted: false };
     }
