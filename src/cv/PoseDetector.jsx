@@ -63,6 +63,13 @@ function PoseDetector({ exerciseId, setNumber, onRepComplete, onFaultDetected, o
   const [visibleLandmarkCount, setVisibleLandmarkCount] = useState(0)
   const [currentAngle, setCurrentAngle] = useState(null)
   const [currentAngleLabel, setCurrentAngleLabel] = useState(null)
+  // Real aspect ratio of the incoming camera stream (defaults to the 4:3
+  // we request from getUserMedia, updated once the stream's real
+  // dimensions are known). Drives the video/canvas box's actual CSS size,
+  // so both elements always occupy the exact same box - relying on the
+  // canvas's height:100% resolving "by accident" against an auto-height
+  // parent is what produced the misaligned overlay before.
+  const [aspectRatio, setAspectRatio] = useState(4 / 3)
 
   // Angle-detection state that needs to survive across frames but
   // shouldn't trigger re-renders - refs, reset whenever exerciseId changes.
@@ -157,6 +164,9 @@ function PoseDetector({ exerciseId, setNumber, onRepComplete, onFaultDetected, o
         video.addEventListener('loadeddata', () => {
           if (cancelled) return
           setStatus('running')
+          if (video.videoWidth && video.videoHeight) {
+            setAspectRatio(video.videoWidth / video.videoHeight)
+          }
           predictWebcam()
         })
       } catch (err) {
@@ -393,25 +403,39 @@ function PoseDetector({ exerciseId, setNumber, onRepComplete, onFaultDetected, o
   }, [])
 
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        style={{ display: 'block', width: '100%', height: 'auto', transform: 'scaleX(-1)' }}
-      />
-      <canvas
-        ref={canvasRef}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          transform: 'scaleX(-1)',
-        }}
-      />
+    <div style={{ width: '100%' }}>
+      {/* Explicit aspect-ratio box, sized from the stream's real
+          dimensions - video and canvas both fill it exactly (same
+          position/width/height), so the landmark overlay can't drift out
+          of alignment with the visible body regardless of container size. */}
+      <div style={{ position: 'relative', width: '100%', aspectRatio, overflow: 'hidden' }}>
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            transform: 'scaleX(-1)',
+          }}
+        />
+        <canvas
+          ref={canvasRef}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            transform: 'scaleX(-1)',
+          }}
+        />
+      </div>
       <div style={{ marginTop: 8, fontFamily: 'sans-serif', fontSize: 14, color: '#fff' }}>
         {status === 'loading' && 'Loading pose model…'}
         {status === 'running' && (

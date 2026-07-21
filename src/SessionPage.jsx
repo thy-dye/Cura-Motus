@@ -436,7 +436,7 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
         )}
 
         {isCamera ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
             <CameraFeed
               exerciseId={exercise.exerciseId}
               setNumber={currentSet}
