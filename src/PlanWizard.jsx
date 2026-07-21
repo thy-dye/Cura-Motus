@@ -27,7 +27,10 @@ export default function PlanWizard({
   mode,
   step,
   currentIndex,
+  totalSteps,
   exercises,
+  matches,
+  resolving,
   sports,
   pastInjuries,
   description,
@@ -41,12 +44,13 @@ export default function PlanWizard({
   onTogglePastInjury,
   onDescriptionChange,
   onContinue,
+  onContinueFromReview,
   onSave,
 }) {
   return (
     <>
       <div className="flex items-center gap-3 mb-8">
-        {[0, 1, 2].map((dotIndex) => (
+        {Array.from({ length: totalSteps }, (_, dotIndex) => dotIndex).map((dotIndex) => (
           <div
             key={dotIndex}
             className={`h-3 w-3 rounded-full transition-colors ${
@@ -93,6 +97,20 @@ export default function PlanWizard({
                 help. Not a replacement for professional care.
               </div>
             </button>
+
+            <button
+              type="button"
+              onClick={() => onChooseMode("custom")}
+              className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 text-left transition-colors hover:border-[var(--primary)] hover:bg-[var(--secondary)]"
+            >
+              <div className="font-semibold text-[var(--foreground)] mb-1">
+                I want to build my own workout
+              </div>
+              <div className="text-sm text-[var(--muted-foreground)]">
+                You already know what exercises you want to do. Type them in
+                and we'll match each one to a demo video and instructions.
+              </div>
+            </button>
           </div>
         </div>
       )}
@@ -100,7 +118,7 @@ export default function PlanWizard({
       {step === "exercises" && (
         <div>
           <h1 className="text-2xl font-bold text-[var(--foreground)] mb-6">
-            Add your prescribed exercises
+            {mode === "injury" ? "Add your prescribed exercises" : "Add your exercises"}
           </h1>
 
           <div className="flex flex-col gap-3 mb-4">
@@ -159,6 +177,65 @@ export default function PlanWizard({
           >
             + Add another exercise
           </button>
+        </div>
+      )}
+
+      {step === "review" && (
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--foreground)] mb-2">
+            Confirm your exercises
+          </h1>
+          <p className="text-sm text-[var(--muted-foreground)] mb-6">
+            We matched what you typed to our exercise library so each one
+            comes with a demo and instructions. If a match looks wrong,
+            retype it.
+          </p>
+
+          <div className="flex flex-col gap-3">
+            {exercises.map((ex, index) => {
+              if (!ex.name.trim()) return null;
+              const match = matches?.[index];
+              return (
+                <div
+                  key={index}
+                  className="flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4"
+                >
+                  {match?.status === "matched" && match.gifUrl ? (
+                    <img
+                      src={match.gifUrl}
+                      alt={match.name}
+                      className="h-16 w-16 flex-shrink-0 rounded-lg object-cover bg-[var(--secondary)]"
+                    />
+                  ) : (
+                    <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--secondary)] text-xs text-[var(--muted-foreground)]">
+                      No preview
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <p className="text-xs text-[var(--muted-foreground)]">You typed</p>
+                    <p className="font-medium text-[var(--foreground)] mb-1">{ex.name}</p>
+                    {match?.status === "matched" ? (
+                      <>
+                        <p className="text-xs text-[var(--muted-foreground)]">Matched to</p>
+                        <p className="font-semibold text-[var(--primary)]">{match.name}</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-amber-500">
+                        No match found. We'll save it with your typed name, no demo video.
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onGoBack}
+                    className="text-sm font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  >
+                    Retype
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -254,6 +331,17 @@ export default function PlanWizard({
           <button
             type="button"
             onClick={onContinue}
+            disabled={resolving}
+            className="rounded-lg bg-[var(--primary)] px-6 py-2.5 text-sm font-semibold text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-60"
+          >
+            {resolving ? "Matching exercises…" : "Continue"}
+          </button>
+        )}
+
+        {step === "review" && (
+          <button
+            type="button"
+            onClick={onContinueFromReview}
             className="rounded-lg bg-[var(--primary)] px-6 py-2.5 text-sm font-semibold text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] transition-colors"
           >
             Continue

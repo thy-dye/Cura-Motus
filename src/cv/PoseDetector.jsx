@@ -9,15 +9,8 @@ import { pickDominantSide, getJointLandmark, findUnclearJoints, isLandmarkVisibl
 import { angleBetweenPoints, createAngleSmoother } from './angleMath'
 import { createPhaseTracker } from './repPhaseTracker'
 
-const PASS_COLOR = '#22c55e' // green
-const FAIL_COLOR = '#ef4444' // red
 const NEUTRAL_COLOR = '#9ca3af' // gray - shown while still positioning
 const LOCKED_COLOR = '#3b82f6' // blue - brief "locked in" confirmation
-// Minimum time a pass/fail highlight + message stays visible once set,
-// regardless of how quickly the rep-phase tracker cycles back to
-// baseline. Without this, a fast rep could clear the highlight within a
-// frame or two, making it effectively invisible in practice.
-const MIN_HIGHLIGHT_MS = 1200
 // How long the blue "locked in" skeleton flash shows after positioning
 // passes, before handing off to normal green/red scoring.
 const LOCKED_FLASH_MS = 600
@@ -45,13 +38,19 @@ const MIN_SHOULDER_Z_DIFF = 0.08
  *                  ("squat" | "lunge" | "shoulder-raise"). If omitted or
  *                  unrecognized, falls back to landmark detection only
  *                  (no angle scoring), same as before.
- *   onFeedback   - (message: string) => void, called whenever the
- *                  feedback text should update (positioning prompts,
- *                  form corrections, rep-complete confirmations).
- *   onRepComplete - (angleName: string) => void, called each time a
- *                  checkpoint angle completes a full rep cycle.
+ *   setNumber    - the current set number (1, 2, 3...). Positioning and
+ *                  the locked tracking side are re-armed whenever this
+ *                  changes, not just when exerciseId changes, since a
+ *                  person's framing/orientation commonly drifts between
+ *                  sets and shouldn't keep scoring against a stale lock.
+ *   onRepComplete - () => void, called each time a rep-counting angle
+ *                  completes a full rep cycle. No live form-correctness
+ *                  UI is surfaced from this anymore - it's purely a count.
+ *   onFaultDetected - (message: string) => void, called on a failed angle
+ *                  checkpoint. Not currently rendered anywhere; kept as a
+ *                  hook for future audio-based corrections.
  */
-function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, onPositioning, isActive = true }) {
+function PoseDetector({ exerciseId, setNumber, onRepComplete, onFaultDetected, onPositioning, isActive = true }) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const poseLandmarkerRef = useRef(null)
@@ -74,10 +73,6 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, 
   const lastPositioningKeyRef = useRef(null) // dedup so we don't fire onPositioning every frame
   const trackersRef = useRef({}) // angleName -> tracker from createPhaseTracker
   const smoothersRef = useRef({}) // angleName -> smoothing fn from createAngleSmoother
-  const jointStatusRef = useRef({}) // angleName -> 'pass' | 'fail' | null (for coloring)
-  const jointStatusSetAtRef = useRef({}) // angleName -> performance.now() when status was last set
-  const lastFaultMessageRef = useRef({}) // angleName -> fault message string (for passing to onRepComplete)
-  const onFeedbackRef = useRef(onFeedback)
   const onRepCompleteRef = useRef(onRepComplete)
   const onFaultDetectedRef = useRef(onFaultDetected)
   const onPositioningRef = useRef(onPositioning)
@@ -94,14 +89,14 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, 
   }, [isActive])
 
   useEffect(() => {
-    onFeedbackRef.current = onFeedback
-  }, [onFeedback])
-  useEffect(() => {
     onRepCompleteRef.current = onRepComplete
   }, [onRepComplete])
 
-  // Reset all angle-tracking state whenever the exercise changes (new
-  // set of a different exercise = fresh baseline, fresh side lock).
+  // Reset all angle-tracking state whenever the exercise OR the set
+  // changes. Framing/orientation commonly drifts between sets (people
+  // step back, adjust, turn slightly), so positioning and the locked
+  // tracking side need to be re-armed every set, not just every exercise,
+  // otherwise later sets keep scoring against a stale lock from set 1.
   useEffect(() => {
     exerciseIdRef.current = exerciseId
     activeSideRef.current = null
@@ -110,22 +105,17 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, 
     const config = EXERCISE_ANGLE_CONFIG[exerciseId]
     trackersRef.current = {}
     smoothersRef.current = {}
-    jointStatusRef.current = {}
-    jointStatusSetAtRef.current = {}
-    lastFaultMessageRef.current = {}
     if (config) {
       for (const angleDef of config.angles) {
         trackersRef.current[angleDef.name] = createPhaseTracker(angleDef)
         smoothersRef.current[angleDef.name] = createAngleSmoother()
-        jointStatusRef.current[angleDef.name] = null
-        jointStatusSetAtRef.current[angleDef.name] = 0
       }
       // Positioning prompts now live in a banner above the camera (see
       // SessionPage), not the feedback status bar under the video.
       lastPositioningKeyRef.current = config.instructions
       onPositioningRef.current?.({ positioned: false, message: config.instructions })
     }
-  }, [exerciseId])
+  }, [exerciseId, setNumber])
 
   useEffect(() => {
     let cancelled = false
@@ -189,18 +179,14 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, 
 
     /**
      * Runs the full angle-detection pipeline for one frame's pose result.
-     * Returns { highlights, phase }:
-     *   highlights - list of { aIndex, vertexIndex, cIndex, status }, one
-     *     per actively-evaluated angle, so the full two-bone segment (e.g.
-     *     the entire hip-knee-ankle leg line) can be color-coded.
+     * Returns { phase }:
      *   phase - 'positioning' (not scoring yet, draw skeleton neutral gray),
      *     'locked' (brief blue "locked in" flash), or 'scoring' (normal
-     *     green/red pass/fail coloring + rep scoring).
+     *     skeleton, reps counted in the background - no pass/fail UI).
      */
-    function processAngles(worldLandmarks, imageLandmarks) {
+    function processAngles(worldLandmarks) {
       const config = EXERCISE_ANGLE_CONFIG[exerciseIdRef.current]
-      const highlights = []
-      if (!config) return { highlights, phase: 'scoring' }
+      if (!config) return { phase: 'scoring' }
 
       // POSITIONING GATE: don't score anything until the user is framed
       // (and, for front-view exercises, turned slightly off-axis). While
@@ -213,9 +199,9 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, 
         if (unclear.length > 0) {
           reportPositioning(
             false,
-            `We can't see your ${unclear.join(' or ')} clearly - step back so your full body is in frame.`
+            `We can't see your ${unclear.join(' or ')} clearly. Step back so your full body is in frame.`
           )
-          return { highlights, phase: 'positioning' }
+          return { phase: 'positioning' }
         }
 
         // Rotation (front-view only): facing the camera dead-on makes the
@@ -231,7 +217,7 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, 
             Math.abs(leftShoulder.z - rightShoulder.z) < MIN_SHOULDER_Z_DIFF
           ) {
             reportPositioning(false, 'Turn slightly to your side.')
-            return { highlights, phase: 'positioning' }
+            return { phase: 'positioning' }
           }
         }
 
@@ -240,7 +226,7 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, 
         const side = pickDominantSide(worldLandmarks, requiredJoints)
         if (!side) {
           reportPositioning(false, config.instructions)
-          return { highlights, phase: 'positioning' }
+          return { phase: 'positioning' }
         }
         activeSideRef.current = side
         positionedRef.current = true
@@ -250,12 +236,10 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, 
 
       // Brief blue "locked in" confirmation before scoring hands off.
       if (performance.now() - lockedAtRef.current < LOCKED_FLASH_MS) {
-        return { highlights, phase: 'locked' }
+        return { phase: 'locked' }
       }
 
       const side = activeSideRef.current
-
-      let feedbackMessage = null
 
       for (const angleDef of config.angles) {
         const [nameA, nameVertex, nameC] = angleDef.points
@@ -280,94 +264,38 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, 
           setCurrentAngleLabel(angleDef.label)
         }
 
-        if (result.evaluated) {
-          jointStatusRef.current[angleDef.name] = result.pass ? 'pass' : 'fail'
-          jointStatusSetAtRef.current[angleDef.name] = performance.now()
+        // Faults still drive the (currently unused) onFaultDetected hook,
+        // but no longer surface as UI - no red/green coloring, no fault
+        // text shown to the user.
+        if (result.evaluated && !result.pass) {
+          // "Overshot" = moved further than the target range (feedbackTooDeep);
+          // otherwise the user didn't move far enough (feedbackTooShallow).
+          // Which side of the range counts as overshooting depends on the
+          // checkpoint direction: for a min-checkpoint (squat depth) a
+          // *smaller* angle overshoots (bent too far); for a max-checkpoint
+          // (arm raise) a *larger* angle overshoots (raised too high).
+          const overshot =
+            angleDef.phase === 'checkpoint-min'
+              ? result.checkpointAngle < angleDef.target[0]
+              : result.checkpointAngle > angleDef.target[1]
+          const faultMsg = overshot
+            ? angleDef.feedbackTooDeep
+            : angleDef.feedbackTooShallow
 
-          if (!result.pass) {
-            // "Overshot" = moved further than the target range (feedbackTooDeep);
-            // otherwise the user didn't move far enough (feedbackTooShallow).
-            // Which side of the range counts as overshooting depends on the
-            // checkpoint direction: for a min-checkpoint (squat depth) a
-            // *smaller* angle overshoots (bent too far); for a max-checkpoint
-            // (arm raise) a *larger* angle overshoots (raised too high). The
-            // old code assumed min for everything, which inverted every
-            // shoulder-raise correction.
-            const overshot =
-              angleDef.phase === 'checkpoint-min'
-                ? result.checkpointAngle < angleDef.target[0]
-                : result.checkpointAngle > angleDef.target[1]
-            const faultMsg = overshot
-              ? angleDef.feedbackTooDeep
-              : angleDef.feedbackTooShallow
-
-            if (faultMsg) {
-              onFaultDetectedRef.current?.(faultMsg)
-              lastFaultMessageRef.current[angleDef.name] = faultMsg
-            }
-
-            if (!feedbackMessage) {
-              feedbackMessage = faultMsg
-            }
+          if (faultMsg) {
+            onFaultDetectedRef.current?.(faultMsg)
           }
         }
 
+        // Rep counting only - the phase tracker's pass/fail judgement no
+        // longer changes what happens here, it only decides when a rep
+        // cycle has completed.
         if (result.repCompleted && angleDef.countsAsRep) {
-          const wasPass = jointStatusRef.current[angleDef.name] === 'pass'
-          const repMessage = wasPass
-            ? 'Perfect form'
-            : (lastFaultMessageRef.current[angleDef.name] || 'Form issue')
-          onRepCompleteRef.current?.({ passed: wasPass, message: repMessage })
-          lastFaultMessageRef.current[angleDef.name] = null
-          if (!feedbackMessage) {
-            feedbackMessage = wasPass
-              ? 'Nice rep! Get ready for the next one.'
-              : "Reset - get ready for your next rep."
-          }
-        }
-
-        // Color the full two-bone segment (a-vertex-c) in the overlay
-        // based on the most recent evaluation for this angle. Held for a
-        // fixed minimum duration from the moment it was set (MIN_HIGHLIGHT_MS),
-        // independent of how fast the rep-phase tracker cycles back to
-        // baseline - without this, a quick rep could clear the color
-        // within a single frame or two, making it effectively invisible
-        // even though it was technically "working." After that hold
-        // window, it clears back to neutral so it doesn't stay stuck
-        // indefinitely either.
-        const setAt = jointStatusSetAtRef.current[angleDef.name] || 0
-        if (jointStatusRef.current[angleDef.name] && performance.now() - setAt > MIN_HIGHLIGHT_MS) {
-          jointStatusRef.current[angleDef.name] = null
-        }
-        // Only the primary angle gets a colored overlay. Secondary
-        // posture checks (back/torso angle) still drive feedback text,
-        // but drawing their own overlapping segment too created a
-        // visible double-line artifact wherever it shares a bone with
-        // the primary (e.g. backAngle's hip-knee bone drawn right
-        // alongside kneeAngle's) - two separate stroke calls along
-        // almost-but-not-quite the same path, rather than one clean
-        // hip-to-ankle line.
-        const status = jointStatusRef.current[angleDef.name]
-        if (status && angleDef.countsAsRep) {
-          const aImage = getJointLandmark(imageLandmarks, nameA, side)
-          const vertexImage = getJointLandmark(imageLandmarks, nameVertex, side)
-          const cImage = getJointLandmark(imageLandmarks, nameC, side)
-          if (aImage && vertexImage && cImage) {
-            highlights.push({
-              aIndex: imageLandmarks.indexOf(aImage),
-              vertexIndex: imageLandmarks.indexOf(vertexImage),
-              cIndex: imageLandmarks.indexOf(cImage),
-              status,
-            })
-          }
+          onRepCompleteRef.current?.()
         }
       }
 
-      if (feedbackMessage) {
-        onFeedbackRef.current?.(feedbackMessage)
-      }
-
-      return { highlights, phase: 'scoring' }
+      return { phase: 'scoring' }
     }
 
     function predictWebcam() {
@@ -393,7 +321,6 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, 
             ctx.clearRect(0, 0, canvas.width, canvas.height)
 
             let visibleCount = 0
-            let highlights = []
             let phase = 'scoring' // default: normal cyan/green skeleton
 
             const landmarks = result.landmarks[0]
@@ -405,8 +332,7 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, 
               ).length
 
               if (worldLandmarks && exerciseIdRef.current && isActiveRef.current) {
-                const res = processAngles(worldLandmarks, landmarks)
-                highlights = res.highlights
+                const res = processAngles(worldLandmarks)
                 phase = res.phase
               }
 
@@ -432,38 +358,6 @@ function PoseDetector({ exerciseId, onFeedback, onRepComplete, onFaultDetected, 
                 PoseLandmarker.POSE_CONNECTIONS,
                 { color: lineColor, lineWidth: 3 }
               )
-            }
-
-            // Draw the full two-bone segment (e.g. the entire hip-knee-
-            // ankle leg line) in pass/fail color, on top of the base
-            // skeleton, so it's clear which whole angle is being judged -
-            // not just a dot on one joint. `highlights` is only ever
-            // populated during the scoring phase (see processAngles), so
-            // no red/green shows while positioning or during the flash.
-            for (const { aIndex, vertexIndex, cIndex, status } of highlights) {
-              const a = landmarks?.[aIndex]
-              const vertex = landmarks?.[vertexIndex]
-              const c = landmarks?.[cIndex]
-              if (!a || !vertex || !c) continue
-
-              const color = status === 'pass' ? PASS_COLOR : FAIL_COLOR
-              ctx.lineWidth = 6
-              ctx.strokeStyle = color
-              ctx.beginPath()
-              ctx.moveTo(a.x * canvas.width, a.y * canvas.height)
-              ctx.lineTo(vertex.x * canvas.width, vertex.y * canvas.height)
-              ctx.lineTo(c.x * canvas.width, c.y * canvas.height)
-              ctx.stroke()
-
-              // Small filled dots at all 3 points of the segment so the
-              // endpoints (e.g. hip, ankle) read clearly too, not just
-              // the vertex.
-              for (const point of [a, vertex, c]) {
-                ctx.beginPath()
-                ctx.arc(point.x * canvas.width, point.y * canvas.height, 6, 0, 2 * Math.PI)
-                ctx.fillStyle = color
-                ctx.fill()
-              }
             }
 
             setVisibleLandmarkCount(visibleCount)
