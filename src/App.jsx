@@ -3,6 +3,7 @@ import AuthPage from "./AuthPage.jsx";
 import HomePage from "./Homepage.jsx";
 import PlanPage from "./PlanPage.jsx";
 import SessionPage from "./SessionPage.jsx";
+import ProgressPage from "./ProgressPage.jsx";
 
 const STORAGE_KEY = "curamotus_user";
 
@@ -59,6 +60,10 @@ function App() {
     case "session":
       return (
         <SessionPage user={user} onNavigate={setPage} onLogout={handleLogout} />
+      );
+    case "progress":
+      return (
+        <ProgressPage user={user} onNavigate={setPage} onLogout={handleLogout} />
       );
     default:
       return (

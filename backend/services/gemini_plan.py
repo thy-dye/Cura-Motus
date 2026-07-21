@@ -16,7 +16,7 @@ LOCKED_EXERCISES = [
     "shoulder-raise",
 ]
 
-GEMINI_MODEL = "gemini-3.5-flash"
+GEMINI_MODEL = "gemini-3.1-flash-lite"
 
 MAX_RETRIES = 3
 BASE_DELAY_SECONDS = 2
@@ -146,7 +146,7 @@ def generate_plan(sports, past_injuries, current_issue, details):
     _plan_cache[cache_key] = plan
     return plan
 
-@gemini_plan_bp.route("/api/generate-plan", methods=["POST"])
+@gemini_plan_bp.route("/api/generate-plan-gemini", methods=["POST"])
 def generate_plan_route():
     body = request.get_json(silent=True) or {}
 

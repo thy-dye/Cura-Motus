@@ -8,6 +8,7 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
   const [step, setStep] = useState(initialStep); // "mode" | "exercises" | "sports"
   const [exercises, setExercises] = useState([{ name: "", sets: "", reps: "" }]);
   const [sports, setSports] = useState([]);
+  const [pastInjuries, setPastInjuries] = useState([]);
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -61,13 +62,84 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
     });
   };
 
+  const togglePastInjury = (injury) => {
+    if (injury === "None") {
+      setPastInjuries(["None"]);
+      return;
+    }
+    setPastInjuries((prev) => {
+      const withoutNone = prev.filter((i) => i !== "None");
+      return withoutNone.includes(injury)
+        ? withoutNone.filter((i) => i !== injury)
+        : [...withoutNone, injury];
+    });
+  };
+
   const handleSave = async () => {
     if (mode === "injury") {
-      const payload = { mode, exercises };
-      // TODO: POST /backend/activities/put_exercises
-      console.log("save prescribed exercises", payload);
-      if (onComplete) onComplete(payload);
-      if (onNavigate) onNavigate("home");
+      const prescribedPlan = exercises
+        .filter((ex) => ex.name.trim())
+        .map((ex) => ({
+          exercise_id: null,
+          name: ex.name.trim(),
+          sets: Number(ex.sets) || 0,
+          reps: Number(ex.reps) || 0,
+          source: "prescribed",
+        }));
+
+      if (prescribedPlan.length === 0) {
+        setError("Add at least one exercise before saving.");
+        return;
+      }
+
+      setSubmitting(true);
+      try {
+        // Try to match each typed name to a real ExerciseDB entry so it
+        // gets a real gif + instructions instead of just raw text. A
+        // failed or missing match just falls back to the plain typed name.
+        const enrichedPrescribed = await Promise.all(
+          prescribedPlan.map(async (item) => {
+            try {
+              const res = await fetch("/backend/api/resolve-exercise", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: item.name }),
+              });
+              const data = res.ok ? await res.json() : null;
+              const match = data?.match;
+              if (!match) return item;
+              return {
+                ...item,
+                exercise_id: match.exerciseId,
+                gif_url: match.gifUrl,
+                instructions: match.instructions,
+              };
+            } catch {
+              return item;
+            }
+          })
+        );
+
+        const saveRes = await fetch("/backend/activities/put_exercises", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: user?.id,
+            exercises: { plan: enrichedPrescribed },
+          }),
+        });
+
+        if (!saveRes.ok) {
+          setError("Couldn't save your exercises. Please try again.");
+          return;
+        }
+
+        setResult({ plan: enrichedPrescribed, disclaimer: null });
+      } catch {
+        setError("Couldn't reach the server. Please try again.");
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
 
@@ -84,7 +156,7 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sports,
-          past_injuries: [],
+          past_injuries: pastInjuries,
           current_issue: description,
           details: "",
         }),
@@ -102,6 +174,12 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
 
       const enrichedPlan = await Promise.all(
         (planData.plan || []).map(async (item) => {
+          // Catalog picks already carry a gif_url from the backend's own
+          // validation step — the YouTube lookup only knows the 3 locked
+          // ids, so skip it entirely for anything else.
+          if (item.source !== "locked") {
+            return item;
+          }
           try {
             const videoRes = await fetch(`/backend/api/exercise-video/${item.exercise_id}`);
             const video = videoRes.ok ? await videoRes.json() : null;
@@ -135,7 +213,9 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
   };
 
   const finishAndGoHome = () => {
-    if (onComplete) onComplete({ mode, sports, description, plan: result?.plan });
+    if (onComplete) {
+      onComplete({ mode, sports, pastInjuries, description, plan: result?.plan });
+    }
     if (onNavigate) onNavigate("home");
   };
 
@@ -153,6 +233,7 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
             currentIndex={currentIndex}
             exercises={exercises}
             sports={sports}
+            pastInjuries={pastInjuries}
             description={description}
             error={error}
             onChooseMode={chooseMode}
@@ -161,6 +242,7 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
             onAddExerciseRow={addExerciseRow}
             onRemoveExerciseRow={removeExerciseRow}
             onToggleSport={toggleSport}
+            onTogglePastInjury={togglePastInjury}
             onDescriptionChange={setDescription}
             onContinue={() => setStep("sports")}
             onSave={handleSave}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import NavBar from "./Navbar.jsx";
-import { exerciseLabel } from "./exercises.js";
+import { exerciseLabel, isLockedExercise } from "./exercises.js";
 
 export default function HomePage({ user, userName = "User", onNavigate, onLogout }) {
   const [exercises, setExercises] = useState([]);
@@ -53,10 +53,12 @@ export default function HomePage({ user, userName = "User", onNavigate, onLogout
           setExercises(
             plan.map((item, index) => ({
               id: index,
-              name: exerciseLabel(item.exercise_id),
+              name: item.name || exerciseLabel(item.exercise_id),
               sets: item.sets,
               reps: item.reps,
-              done: completedToday.has(item.exercise_id),
+              done: completedToday.has(
+                isLockedExercise(item.exercise_id) ? item.exercise_id : item.name
+              ),
             }))
           );
         }
@@ -73,12 +75,6 @@ export default function HomePage({ user, userName = "User", onNavigate, onLogout
   }, [user?.id]);
 
   const completedCount = exercises.filter((e) => e.done).length;
-
-  const toggleDone = (id) => {
-    setExercises((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, done: !e.done } : e))
-    );
-  };
 
   const nextExercise = exercises.find((e) => !e.done);
 
@@ -148,13 +144,12 @@ export default function HomePage({ user, userName = "User", onNavigate, onLogout
                   className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] last:border-b-0"
                 >
                   <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleDone(exercise.id)}
+                    <div
+                      role="img"
                       aria-label={
                         exercise.done
-                          ? `Mark ${exercise.name} as not done`
-                          : `Mark ${exercise.name} as done`
+                          ? `${exercise.name} completed today`
+                          : `${exercise.name} not completed yet`
                       }
                       className={`flex h-6 w-6 items-center justify-center rounded-full border transition-colors ${
                         exercise.done
@@ -178,7 +173,7 @@ export default function HomePage({ user, userName = "User", onNavigate, onLogout
                           />
                         </svg>
                       )}
-                    </button>
+                    </div>
                     <span
                       className={
                         exercise.done

@@ -26,6 +26,41 @@ export default function PlanResult({ submitting, result, onFinish }) {
   }, [submitting]);
 
   if (result) {
+    const hasExercises = result.plan && result.plan.length > 0;
+
+    if (!hasExercises) {
+      return (
+        <div className="flex flex-col items-center text-center py-10">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--secondary)] text-[var(--foreground)] mb-5">
+            <svg width="20" height="20" viewBox="0 0 12 12" fill="none">
+              <path
+                d="M6 3.5V7"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <circle cx="6" cy="9" r="0.75" fill="currentColor" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-bold text-[var(--foreground)] mb-3">
+            We couldn't generate exercises for this
+          </h1>
+          {result.disclaimer && (
+            <p className="text-sm text-[var(--foreground)] mb-8 max-w-md">
+              {result.disclaimer}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={onFinish}
+            className="rounded-lg bg-[var(--primary)] px-6 py-2.5 text-sm font-semibold text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] transition-colors"
+          >
+            Back to Home
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col items-center text-center py-10">
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--primary-foreground)] mb-5">
@@ -56,7 +91,7 @@ export default function PlanResult({ submitting, result, onFinish }) {
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="font-semibold text-[var(--foreground)]">
-                  {exerciseLabel(item.exercise_id)}
+                  {item.name || exerciseLabel(item.exercise_id)}
                 </span>
                 <span
                   className="text-sm text-[var(--muted-foreground)]"

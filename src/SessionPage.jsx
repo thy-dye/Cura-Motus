@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import NavBar from "./Navbar.jsx";
 import PoseDetector from "./cv/PoseDetector.jsx";
-import { exerciseLabel } from "./exercises.js";
+import { exerciseLabel, isLockedExercise, exerciseSteps } from "./exercises.js";
 
 function CameraFeed({ feedbackMessage }) {
   return (
@@ -30,6 +30,12 @@ function VideoAndSteps({ exercise }) {
             title={exercise.name}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
+          />
+        ) : exercise.gifUrl ? (
+          <img
+            src={exercise.gifUrl}
+            alt={exercise.name}
+            className="h-full w-full object-contain bg-[var(--card)]"
           />
         ) : (
           <span className="text-sm text-[var(--muted-foreground)]">
@@ -107,13 +113,17 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
             plan.map((item, index) => ({
               id: index,
               exerciseId: item.exercise_id,
-              name: exerciseLabel(item.exercise_id),
-              type: "camera",
+              name: item.name || exerciseLabel(item.exercise_id),
+              type: isLockedExercise(item.exercise_id) ? "camera" : "general",
               sets: item.sets,
               reps: item.reps,
               note: item.note,
               videoId: item.video?.video_id || null,
-              steps: [],
+              gifUrl: item.gif_url || null,
+              steps:
+                item.instructions && item.instructions.length > 0
+                  ? item.instructions
+                  : exerciseSteps(item.exercise_id),
             }))
           );
         }
@@ -145,12 +155,18 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
 
   const logCompletion = (exercise) => {
     if (!user?.id) return;
+    // Locked exercises log under their clean id ("squat"). Everything else
+    // (a catalog pick or a PT-typed name) logs under its readable name
+    // instead of a cryptic ExerciseDB id, so Progress's breakdown stays legible.
+    const identifier = isLockedExercise(exercise.exerciseId)
+      ? exercise.exerciseId
+      : exercise.name;
     fetch("/backend/completion/put", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         user_id: user.id,
-        exercise_name: exercise.exerciseId || exercise.name,
+        exercise_name: identifier,
       }),
     }).catch(() => {
       // best-effort, don't block the session over a logging failure
