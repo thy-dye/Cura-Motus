@@ -53,6 +53,6 @@ def exercises_by_body_part(body_part):
             "details" : str(error),
         }), 502
 
-@core_bp.route('/backend/temp')
+@core_bp.route('/temp')
 def get_current_time():
     return {'time': time.time()}
