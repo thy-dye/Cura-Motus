@@ -6,6 +6,7 @@ import SessionPage from "./SessionPage.jsx";
 import ProgressPage from "./ProgressPage.jsx";
 
 const STORAGE_KEY = "curamotus_user";
+const THEME_STORAGE_KEY = "curamotus_theme";
 
 function loadStoredUser() {
   try {
@@ -16,10 +17,33 @@ function loadStoredUser() {
   }
 }
 
+function loadStoredTheme() {
+  try {
+    // The inline script in index.html already resolved and set this
+    // before React mounted (localStorage, falling back to the OS
+    // preference), so read that back rather than re-deriving it here.
+    return document.documentElement.dataset.theme || "light";
+  } catch {
+    return "light";
+  }
+}
+
 
 function App() {
   const [user, setUser] = useState(loadStoredUser);
   const [page, setPage] = useState("home");
+  const [theme, setTheme] = useState(loadStoredTheme);
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    document.documentElement.dataset.theme = next;
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, next);
+    } catch {
+      // theme just won't persist across reloads
+    }
+  };
 
   const handleAuthSuccess = (nextUser) => {
     setUser(nextUser);
@@ -42,7 +66,9 @@ function App() {
 
 
   if (!user) {
-    return <AuthPage onAuthSuccess={handleAuthSuccess} />;
+    return (
+      <AuthPage onAuthSuccess={handleAuthSuccess} theme={theme} onToggleTheme={toggleTheme} />
+    );
   }
 
   switch (page) {
@@ -53,19 +79,39 @@ function App() {
           userName={user.firstName}
           onNavigate={setPage}
           onLogout={handleLogout}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
       );
     case "plan":
       return (
-        <PlanPage user={user} onNavigate={setPage} onLogout={handleLogout} />
+        <PlanPage
+          user={user}
+          onNavigate={setPage}
+          onLogout={handleLogout}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
       );
     case "session":
       return (
-        <SessionPage user={user} onNavigate={setPage} onLogout={handleLogout} />
+        <SessionPage
+          user={user}
+          onNavigate={setPage}
+          onLogout={handleLogout}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
       );
     case "progress":
       return (
-        <ProgressPage user={user} onNavigate={setPage} onLogout={handleLogout} />
+        <ProgressPage
+          user={user}
+          onNavigate={setPage}
+          onLogout={handleLogout}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
       );
     default:
       return (

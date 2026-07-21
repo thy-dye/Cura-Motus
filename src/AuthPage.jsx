@@ -2,7 +2,7 @@ import { useState } from "react";
 import "./AuthPage.css";
 import logo from "./assets/logo.png";
 
-export default function AuthPage({ onAuthSuccess }) {
+export default function AuthPage({ onAuthSuccess, theme, onToggleTheme }) {
   const [mode, setMode] = useState("signin"); // "signin" | "signup"
   const [form, setForm] = useState({
     firstName: "",
@@ -67,6 +67,36 @@ export default function AuthPage({ onAuthSuccess }) {
 
   return (
     <div className="auth-page">
+      {onToggleTheme && (
+        <button
+          type="button"
+          onClick={onToggleTheme}
+          aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          className="auth-theme-toggle"
+        >
+          {theme === "dark" ? (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="8" cy="8" r="3.25" stroke="currentColor" strokeWidth="1.4" />
+              <path
+                d="M8 0.75V2.5M8 13.5V15.25M15.25 8H13.5M2.5 8H0.75M13.06 2.94L11.83 4.17M4.17 11.83L2.94 13.06M13.06 13.06L11.83 11.83M4.17 4.17L2.94 2.94"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+              />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M14 9.3A6 6 0 1 1 6.7 2a4.7 4.7 0 0 0 7.3 7.3Z"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
+        </button>
+      )}
+
       <div className="auth-content">
         <img src={logo} alt="Cura Motus" className="auth-logo" />
         <h1 className="auth-wordmark">Cura Motus</h1>

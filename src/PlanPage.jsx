@@ -3,7 +3,7 @@ import NavBar from "./Navbar.jsx";
 import PlanWizard from "./PlanWizard.jsx";
 import PlanResult from "./PlanResult.jsx";
 
-export default function PlanPage({ user, onNavigate, onLogout, onComplete, initialStep = "mode" }) {
+export default function PlanPage({ user, onNavigate, onLogout, onComplete, initialStep = "mode", theme, onToggleTheme }) {
   const [mode, setMode] = useState(null); // "injury" | "general" | "custom"
   const [step, setStep] = useState(initialStep); // "mode" | "exercises" | "review" | "sports"
   const [exercises, setExercises] = useState([{ name: "", sets: "", reps: "" }]);
@@ -257,7 +257,13 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <NavBar activePath="plan" onNavigate={onNavigate} onLogout={onLogout} />
+      <NavBar
+        activePath="plan"
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+      />
 
       <main className="mx-auto max-w-2xl px-8 py-10">
         {result || submitting ? (

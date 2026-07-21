@@ -67,7 +67,7 @@ function formatRelativeDate(date) {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export default function ProgressPage({ user, onNavigate, onLogout }) {
+export default function ProgressPage({ user, onNavigate, onLogout, theme, onToggleTheme }) {
   const [completions, setCompletions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -109,7 +109,13 @@ export default function ProgressPage({ user, onNavigate, onLogout }) {
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <NavBar activePath="progress" onNavigate={onNavigate} onLogout={onLogout} />
+      <NavBar
+        activePath="progress"
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+      />
 
       <main className="mx-auto max-w-3xl px-8 py-10">
         <h1 className="text-3xl font-bold text-[var(--foreground)] mb-6">
@@ -150,11 +156,19 @@ export default function ProgressPage({ user, onNavigate, onLogout }) {
                   {completions.length}
                 </p>
               </div>
-              <div className="rounded-xl bg-[var(--primary)] p-5 text-[var(--primary-foreground)]">
-                <p className="text-sm opacity-90 mb-1">Current Streak</p>
+              <div
+                className="rounded-xl border p-5"
+                style={{
+                  borderColor: "var(--accent)",
+                  backgroundColor: "color-mix(in srgb, var(--accent) 12%, var(--card))",
+                }}
+              >
+                <p className="text-sm mb-1" style={{ color: "var(--accent)" }}>
+                  Current Streak
+                </p>
                 <p
                   className="text-3xl font-bold"
-                  style={{ fontFamily: "var(--font-mono)" }}
+                  style={{ fontFamily: "var(--font-mono)", color: "var(--accent)" }}
                 >
                   {streak} {streak === 1 ? "day" : "days"}
                 </p>

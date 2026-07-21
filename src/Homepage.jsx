@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import NavBar from "./Navbar.jsx";
 import { exerciseLabel, isLockedExercise } from "./exercises.js";
 
-export default function HomePage({ user, userName = "User", onNavigate, onLogout }) {
+export default function HomePage({ user, userName = "User", onNavigate, onLogout, theme, onToggleTheme }) {
   const [exercises, setExercises] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -80,7 +80,13 @@ export default function HomePage({ user, userName = "User", onNavigate, onLogout
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <NavBar activePath="home" onNavigate={onNavigate} onLogout={onLogout} />
+      <NavBar
+        activePath="home"
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+      />
 
       <main className="mx-auto max-w-3xl px-8 py-10">
         <h1 className="text-3xl font-bold text-[var(--foreground)] mb-6">
@@ -91,14 +97,14 @@ export default function HomePage({ user, userName = "User", onNavigate, onLogout
           <button
             type="button"
             onClick={() => onNavigate && onNavigate("session")}
-            className="rounded-xl border border-[var(--border)] bg-[var(--card)] py-8 text-center font-semibold text-[var(--foreground)] transition-colors hover:border-[var(--primary)] hover:bg-[var(--secondary)]"
+            className="rounded-xl border border-[var(--border)] bg-[var(--card)] py-8 text-center font-semibold text-[var(--foreground)] transition-all hover:border-[var(--primary)] hover:bg-[var(--primary)]/10 hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
           >
             Start Session
           </button>
           <button
             type="button"
             onClick={() => onNavigate && onNavigate("plan")}
-            className="rounded-xl border border-[var(--border)] bg-[var(--card)] py-8 text-center font-semibold text-[var(--foreground)] transition-colors hover:border-[var(--primary)] hover:bg-[var(--secondary)]"
+            className="rounded-xl border border-[var(--border)] bg-[var(--card)] py-8 text-center font-semibold text-[var(--foreground)] transition-all hover:border-[var(--primary)] hover:bg-[var(--primary)]/10 hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
           >
             Edit my Plan
           </button>
@@ -153,7 +159,7 @@ export default function HomePage({ user, userName = "User", onNavigate, onLogout
                       }
                       className={`flex h-6 w-6 items-center justify-center rounded-full border transition-colors ${
                         exercise.done
-                          ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]"
+                          ? "pop-in border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]"
                           : "border-[var(--border)] bg-[var(--card)]"
                       }`}
                     >

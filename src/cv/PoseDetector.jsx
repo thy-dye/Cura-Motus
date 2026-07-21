@@ -435,18 +435,36 @@ function PoseDetector({ exerciseId, setNumber, onRepComplete, onFaultDetected, o
             transform: 'scaleX(-1)',
           }}
         />
-      </div>
-      <div style={{ marginTop: 8, fontFamily: 'sans-serif', fontSize: 14, color: '#fff' }}>
-        {status === 'loading' && 'Loading pose model…'}
-        {status === 'running' && (
-          <div>
-            <div>{`Tracking: ${visibleLandmarkCount}/33 landmarks visible`}</div>
-            {currentAngle !== null && currentAngleLabel && (
-              <div>{`${currentAngleLabel}: ${currentAngle}°`}</div>
-            )}
-          </div>
-        )}
-        {status === 'error' && `Error: ${errorMessage}`}
+        {/* Tracking status as a small corner badge over the feed, instead
+            of its own strip below it - keeps it out of the way while
+            still visible for debugging positioning issues. */}
+        <div
+          style={{
+            position: 'absolute',
+            left: 10,
+            bottom: 10,
+            maxWidth: 'calc(100% - 20px)',
+            padding: '4px 10px',
+            borderRadius: 999,
+            background: 'rgba(0, 0, 0, 0.55)',
+            fontFamily: 'sans-serif',
+            fontSize: 12,
+            lineHeight: 1.4,
+            color: '#fff',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {status === 'loading' && 'Loading pose model…'}
+          {status === 'running' && (
+            <>
+              {`Tracking: ${visibleLandmarkCount}/33`}
+              {currentAngle !== null && currentAngleLabel && ` · ${currentAngleLabel}: ${currentAngle}°`}
+            </>
+          )}
+          {status === 'error' && `Error: ${errorMessage}`}
+        </div>
       </div>
     </div>
   )

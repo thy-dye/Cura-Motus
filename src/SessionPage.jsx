@@ -24,9 +24,12 @@ function speakText(text) {
   }
 }
 
+// Fixed dark housing, independent of the light/dark theme toggle - camera
+// feeds conventionally sit on a black background regardless of app theme,
+// and the status text under it (in PoseDetector) is hardcoded white.
 function CameraFeed({ exerciseId, setNumber, onRepComplete, onFaultDetected, onPositioning, isActive }) {
   return (
-    <div className="relative w-full overflow-hidden rounded-xl bg-[var(--foreground)]">
+    <div className="relative w-full overflow-hidden rounded-xl bg-[#18181b]">
       <PoseDetector
         exerciseId={exerciseId}
         setNumber={setNumber}
@@ -104,7 +107,8 @@ function RestInterstitial({ setNumber, secondsLeft, onSkip }) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-[var(--background)]/95 backdrop-blur-sm">
       <div
-        className="flex h-24 w-24 items-center justify-center rounded-full bg-emerald-500/15 text-6xl font-bold text-emerald-500"
+        className="pop-in flex h-24 w-24 items-center justify-center rounded-full text-6xl font-bold"
+        style={{ backgroundColor: "color-mix(in srgb, var(--accent) 15%, transparent)", color: "var(--accent)" }}
         aria-hidden="true"
       >
         ✓
@@ -113,7 +117,7 @@ function RestInterstitial({ setNumber, secondsLeft, onSkip }) {
         Set {setNumber} complete!
       </h2>
       <p
-        className="text-6xl font-bold text-[var(--primary)]"
+        className="text-6xl font-bold text-[var(--accent)]"
         style={{ fontFamily: "var(--font-mono)" }}
       >
         {secondsLeft}
@@ -124,7 +128,7 @@ function RestInterstitial({ setNumber, secondsLeft, onSkip }) {
       <button
         type="button"
         onClick={onSkip}
-        className="rounded-lg bg-[var(--primary)] px-8 py-3 text-base font-semibold text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] transition-colors"
+        className="rounded-lg bg-[var(--accent)] px-8 py-3 text-base font-semibold text-[var(--accent-foreground)] transition-opacity hover:opacity-90"
       >
         Skip rest
       </button>
@@ -132,7 +136,7 @@ function RestInterstitial({ setNumber, secondsLeft, onSkip }) {
   );
 }
 
-export default function SessionPage({ user, onNavigate, onLogout, session: sessionProp }) {
+export default function SessionPage({ user, onNavigate, onLogout, session: sessionProp, theme, onToggleTheme }) {
   const [session, setSession] = useState(sessionProp || null);
   const [loading, setLoading] = useState(!sessionProp);
   const [error, setError] = useState("");
@@ -347,7 +351,13 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background)]">
-        <NavBar activePath="session" onNavigate={onNavigate} onLogout={onLogout} />
+        <NavBar
+          activePath="session"
+          onNavigate={onNavigate}
+          onLogout={onLogout}
+          theme={theme}
+          onToggleTheme={onToggleTheme}
+        />
         <main className="mx-auto max-w-5xl px-8 py-10">
           <p className="text-sm text-[var(--muted-foreground)]">
             Loading your session…
@@ -360,7 +370,13 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
   if (error || !session || session.length === 0) {
     return (
       <div className="min-h-screen bg-[var(--background)]">
-        <NavBar activePath="session" onNavigate={onNavigate} onLogout={onLogout} />
+        <NavBar
+          activePath="session"
+          onNavigate={onNavigate}
+          onLogout={onLogout}
+          theme={theme}
+          onToggleTheme={onToggleTheme}
+        />
         <main className="mx-auto max-w-5xl px-8 py-10 text-center">
           <p className="text-sm text-[var(--muted-foreground)] mb-4">
             {error || "You don't have a plan yet."}
@@ -382,7 +398,13 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <NavBar activePath="session" onNavigate={onNavigate} onLogout={onLogout} />
+      <NavBar
+        activePath="session"
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+      />
 
       {sessionState === "resting" && (
         <RestInterstitial
@@ -393,47 +415,37 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
       )}
 
       <main className="mx-auto max-w-5xl px-8 py-10">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--foreground)]">
-              {exercise.name}
-            </h1>
-            <p className="text-sm text-[var(--muted-foreground)] mt-1">
-              Exercise {exerciseIndex + 1} of {session.length}
-            </p>
+        <div className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] px-6 py-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-[var(--foreground)]">
+                {exercise.name}
+              </h1>
+              <p className="text-sm text-[var(--muted-foreground)] mt-1">
+                Exercise {exerciseIndex + 1} of {session.length}
+              </p>
+            </div>
+
+            <div
+              className="rounded-xl bg-[var(--primary)] px-6 py-3 text-lg font-bold text-[var(--primary-foreground)]"
+              style={{ fontFamily: "var(--font-mono)" }}
+            >
+              Set {currentSet} / {exercise.sets} &nbsp;·&nbsp; {cvRepCount}/{exercise.reps} reps
+            </div>
           </div>
 
-          <div
-            className="rounded-xl bg-[var(--primary)] px-6 py-3 text-lg font-bold text-[var(--primary-foreground)] shadow-sm"
-            style={{ fontFamily: "var(--font-mono)" }}
-          >
-            Set {currentSet} / {exercise.sets} &nbsp;·&nbsp; {cvRepCount}/{exercise.reps} reps
-          </div>
+          {isCamera && sessionState === "active" && (positioning.positioned || positioning.message) && (
+            <div className="mt-4 flex items-center gap-2.5 border-t border-[var(--border)] pt-4 text-sm font-medium text-[var(--secondary-foreground)]">
+              <span
+                className={`font-semibold ${positioning.positioned ? "text-[var(--primary)]" : "text-amber-500"}`}
+                style={{ fontFamily: "var(--font-mono)" }}
+              >
+                {positioning.positioned ? "✓" : "⚠"}
+              </span>
+              {positioning.positioned ? "Positioned! Now go!" : positioning.message}
+            </div>
+          )}
         </div>
-
-        {isCamera && sessionState === "active" && (
-          positioning.positioned ? (
-            <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-medium text-[var(--secondary-foreground)]">
-              <span
-                className="font-semibold text-emerald-500"
-                style={{ fontFamily: "var(--font-mono)" }}
-              >
-                ✓
-              </span>
-              Positioned! Now go!
-            </div>
-          ) : positioning.message ? (
-            <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-medium text-[var(--secondary-foreground)]">
-              <span
-                className="font-semibold text-amber-500"
-                style={{ fontFamily: "var(--font-mono)" }}
-              >
-                ⚠
-              </span>
-              {positioning.message}
-            </div>
-          ) : null
-        )}
 
         {isCamera ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">

@@ -13,19 +13,67 @@
   --secondary-foreground: #3f3f46;
   --muted: #f4f4f5;
   --muted-foreground: #71717a;
-  --accent: #0d9488;
+  /* Secondary accent, kept separate from --primary (teal) so a small
+     number of moments (streak, session-complete) can read as distinct.
+     Deliberately still in the logo's green/teal/blue family - not an
+     unrelated hue - just a different note in the same palette. */
+  --accent: #059669;
   --accent-foreground: #ffffff;
   --border: #e4e4e7;
   --ring: #0d9488;
   --error: #dc2626;
   --radius: 8px;
+  --shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.06);
+  --shadow-md: 0 4px 10px rgba(24, 24, 27, 0.08);
 
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'DM Mono', 'Menlo', monospace;
 }
 
+:root[data-theme='dark'] {
+  --background: #0f1113;
+  --foreground: #f4f4f5;
+  --card: #1b1e21;
+  --card-foreground: #f4f4f5;
+  --primary: #2dd4bf;
+  --primary-hover: #5eead4;
+  --primary-foreground: #0f1113;
+  --secondary: #26292c;
+  --secondary-foreground: #d4d4d8;
+  --muted: #26292c;
+  --muted-foreground: #a1a1aa;
+  --accent: #34d399;
+  --accent-foreground: #0f1113;
+  --border: #33373a;
+  --ring: #2dd4bf;
+  --error: #f87171;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
 * {
   box-sizing: border-box;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.pop-in {
+  animation: pop-in 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop-in {
+    animation: none;
+  }
 }
 
 html,
@@ -42,6 +90,13 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body {
+    transition: none;
+  }
 }
 
 ::-webkit-scrollbar {

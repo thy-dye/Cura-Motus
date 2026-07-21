@@ -71,7 +71,7 @@ export default function PlanWizard({
             <button
               type="button"
               onClick={() => onChooseMode("injury")}
-              className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 text-left transition-colors hover:border-[var(--primary)] hover:bg-[var(--secondary)]"
+              className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 text-left transition-all hover:border-[var(--primary)] hover:bg-[var(--primary)]/10 hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
             >
               <div className="font-semibold text-[var(--foreground)] mb-1">
                 I have exercises from my Physical Therapist
@@ -86,7 +86,7 @@ export default function PlanWizard({
             <button
               type="button"
               onClick={() => onChooseMode("general")}
-              className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 text-left transition-colors hover:border-[var(--primary)] hover:bg-[var(--secondary)]"
+              className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 text-left transition-all hover:border-[var(--primary)] hover:bg-[var(--primary)]/10 hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
             >
               <div className="font-semibold text-[var(--foreground)] mb-1">
                 I have a minor issue or want to improve movement
@@ -101,7 +101,7 @@ export default function PlanWizard({
             <button
               type="button"
               onClick={() => onChooseMode("custom")}
-              className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 text-left transition-colors hover:border-[var(--primary)] hover:bg-[var(--secondary)]"
+              className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 text-left transition-all hover:border-[var(--primary)] hover:bg-[var(--primary)]/10 hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
             >
               <div className="font-semibold text-[var(--foreground)] mb-1">
                 I want to build my own workout
