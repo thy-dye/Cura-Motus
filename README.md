@@ -35,6 +35,7 @@ Cura-Motus("Care in Motion") is a web app that uses real-time camera-based pose 
 - Flask
 - [OpenAI API](https://www.google.com/aclk?sa=L&ai=DChsSEwj60ov_veSVAxUwNwgFHcIKBL8YACICCAEQAhoCbWQ&co=1&gclid=CjwKCAjwsfzSBhB5EiwAOGyqSWRUk03CpF_3QuI-pzYLJMyQB46f4ihEcq6hotzHGnG3U2nB1Ntp-hoCcI0QAvD_BwE&cid=CAAS0wHkaG8mQFQ4Oje79RosUuKUF1zUUuOek006meZkb5-aF7_FQKhetCtEZv27KJvFGJorku_xAMxcmQmJW9OfEH_83f1EDNOs2W15oXQJCQKYfK-I9f1Wi_VhStixpQH4tl03PzEUBOQ8QxuIbmwUZ6KbMba_d8-mP8VHuD2jarO_RwcRlEZWCcIdZ8jgo5wR9uFhBkPoJasgmpdlkOgAfItIHhH0pWZP6UgCW5mLkIjjDU3pRGAUbwiaG6gHfo43VXIwk6dzazR1-4izNyBO73OVRzYK&cce=1&sig=AOD64_1rmFZvoe_WMz33GQtrOx2VKvpjWA&q&adurl&ved=2ahUKEwjH_oP_veSVAxUNmokEHeQQL3AQ0Qx6BAgQEAE) (personalized exercise plan generation)
 - Web Speech API (spoken rep counts & motivational feedback)
+- [Ascend API](https://ascendapi.com) (access to range of exercises and demonstrations)
 
 -----
 
