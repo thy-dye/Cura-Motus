@@ -32,7 +32,9 @@ export default function PlanWizard({
   matches,
   resolving,
   sports,
+  otherSportText,
   pastInjuries,
+  otherInjuryText,
   description,
   error,
   onChooseMode,
@@ -41,7 +43,9 @@ export default function PlanWizard({
   onAddExerciseRow,
   onRemoveExerciseRow,
   onToggleSport,
+  onOtherSportTextChange,
   onTogglePastInjury,
+  onOtherInjuryTextChange,
   onDescriptionChange,
   onContinue,
   onContinueFromReview,
@@ -273,6 +277,16 @@ export default function PlanWizard({
             })}
           </div>
 
+          {sports.includes("Other") && (
+            <input
+              type="text"
+              value={otherSportText}
+              onChange={(e) => onOtherSportTextChange(e.target.value)}
+              placeholder="Tell us what sport or activity"
+              className="mb-6 w-full rounded-lg border border-[var(--border)] bg-[var(--secondary)] px-3 py-2.5 text-[var(--foreground)]"
+            />
+          )}
+
           {mode === "general" && (
             <div>
               <p className="text-sm font-medium text-[var(--muted-foreground)] mb-3">
@@ -298,9 +312,33 @@ export default function PlanWizard({
                 })}
               </div>
 
+              {pastInjuries.includes("Other") && (
+                <input
+                  type="text"
+                  value={otherInjuryText}
+                  onChange={(e) => onOtherInjuryTextChange(e.target.value)}
+                  placeholder="Tell us what injury or condition"
+                  className="mb-6 w-full rounded-lg border border-[var(--border)] bg-[var(--secondary)] px-3 py-2.5 text-[var(--foreground)]"
+                />
+              )}
+
               <p className="text-sm font-medium text-[var(--muted-foreground)] mb-2">
                 What would you like to work on?
               </p>
+              <div className="mb-3 flex items-start gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--secondary-foreground)]">
+                <span
+                  className="font-semibold text-amber-500"
+                  style={{ fontFamily: "var(--font-mono)" }}
+                >
+                  ⚠
+                </span>
+                <span>
+                  Heads up: if you describe a current, acute injury (a fresh
+                  sprain, something still healing), we may intentionally leave
+                  out exercises for that area. This plan supplements
+                  professional care, it doesn't replace it.
+                </span>
+              </div>
               <textarea
                 value={description}
                 onChange={(e) => onDescriptionChange(e.target.value)}

@@ -51,3 +51,12 @@ export function exerciseSteps(exerciseId) {
 export function isLockedExercise(exerciseId) {
   return Object.prototype.hasOwnProperty.call(EXERCISE_LABELS, exerciseId);
 }
+
+// What EXERCISE_COMPLETION rows are logged/matched under. Locked exercises
+// log under their clean id ("squat"); everything else (a catalog pick or a
+// PT-typed name) logs under its readable name instead of a cryptic
+// ExerciseDB id. SessionPage (logging) and Homepage (reading today's
+// progress) both need to agree on this exact scheme, or set counts drift.
+export function exerciseIdentifier(exerciseId, name) {
+  return isLockedExercise(exerciseId) ? exerciseId : name;
+}

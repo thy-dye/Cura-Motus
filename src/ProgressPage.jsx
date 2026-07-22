@@ -4,19 +4,33 @@ import WeekGrid from "./WeekGrid.jsx";
 import { exerciseLabel } from "./exercises.js";
 import { dayKey, calculateStreak } from "./streak.js";
 
+// SessionPage now logs one EXERCISE_COMPLETION row per *set*, not per
+// exercise, so multiple sets done in one sitting show up as multiple rows
+// on the same day. Track distinct days per exercise here (not raw row
+// count), so "count" keeps meaning "sessions" rather than "sets logged."
 function buildBreakdown(completions) {
   const byExercise = new Map();
   for (const c of completions) {
     const date = new Date(c.Completion);
+    const day = dayKey(date);
     const existing = byExercise.get(c.ExerciseName);
     if (!existing) {
-      byExercise.set(c.ExerciseName, { exerciseId: c.ExerciseName, count: 1, lastCompleted: date });
+      byExercise.set(c.ExerciseName, { exerciseId: c.ExerciseName, days: new Set([day]), lastCompleted: date });
     } else {
-      existing.count += 1;
+      existing.days.add(day);
       if (date > existing.lastCompleted) existing.lastCompleted = date;
     }
   }
-  return Array.from(byExercise.values()).sort((a, b) => b.lastCompleted - a.lastCompleted);
+  return Array.from(byExercise.values())
+    .map((e) => ({ exerciseId: e.exerciseId, count: e.days.size, lastCompleted: e.lastCompleted }))
+    .sort((a, b) => b.lastCompleted - a.lastCompleted);
+}
+
+// Same day-based dedupe idea as buildBreakdown, for the "Total Completed"
+// stat - counts distinct (exercise, day) sessions, not raw completion rows.
+function countSessions(completions) {
+  const sessionKeys = new Set(completions.map((c) => `${c.ExerciseName}::${dayKey(c.Completion)}`));
+  return sessionKeys.size;
 }
 
 function formatRelativeDate(date) {
@@ -65,6 +79,7 @@ export default function ProgressPage({ user, onNavigate, onLogout, theme, onTogg
   const completedDayKeys = new Set(completions.map((c) => dayKey(c.Completion)));
   const streak = calculateStreak(completedDayKeys);
   const breakdown = buildBreakdown(completions);
+  const totalSessions = countSessions(completions);
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
@@ -112,7 +127,7 @@ export default function ProgressPage({ user, onNavigate, onLogout, theme, onTogg
                   className="text-3xl font-bold text-[var(--foreground)]"
                   style={{ fontFamily: "var(--font-mono)" }}
                 >
-                  {completions.length}
+                  {totalSessions}
                 </p>
               </div>
               <div

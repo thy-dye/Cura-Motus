@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import NavBar from "./Navbar.jsx";
 import PoseDetector from "./cv/PoseDetector.jsx";
-import { exerciseLabel, isLockedExercise, exerciseSteps } from "./exercises.js";
+import { exerciseLabel, isLockedExercise, exerciseSteps, exerciseIdentifier } from "./exercises.js";
 
 const REST_SECONDS = 60;
 
@@ -51,8 +51,9 @@ function VideoAndSteps({ exercise }) {
         {exercise.videoId ? (
           <iframe
             className="h-full w-full"
-            src={`https://www.youtube.com/embed/${exercise.videoId}`}
+            src={`https://www.youtube-nocookie.com/embed/${exercise.videoId}`}
             title={exercise.name}
+            referrerPolicy="strict-origin-when-cross-origin"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
           />
@@ -103,9 +104,16 @@ function VideoAndSteps({ exercise }) {
 // Full-screen rest interstitial shown between sets/exercises. Fires from
 // the same completeSet() call that triggers the Speech Synthesis cue, so
 // the audio and the visual never drift out of sync with each other.
-function RestInterstitial({ setNumber, secondsLeft, onSkip }) {
+function RestInterstitial({ setNumber, secondsLeft, onSkip, onBack }) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-[var(--background)]/95 backdrop-blur-sm">
+      <button
+        type="button"
+        onClick={onBack}
+        className="absolute left-6 top-6 text-sm font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+      >
+        ← Back
+      </button>
       <div
         className="pop-in flex h-24 w-24 items-center justify-center rounded-full text-6xl font-bold"
         style={{ backgroundColor: "color-mix(in srgb, var(--accent) 15%, transparent)", color: "var(--accent)" }}
@@ -136,7 +144,16 @@ function RestInterstitial({ setNumber, secondsLeft, onSkip }) {
   );
 }
 
-export default function SessionPage({ user, onNavigate, onLogout, session: sessionProp, theme, onToggleTheme }) {
+export default function SessionPage({
+  user,
+  onNavigate,
+  onLogout,
+  session: sessionProp,
+  theme,
+  onToggleTheme,
+  entryExerciseIndex,
+  entryStartSet,
+}) {
   const [session, setSession] = useState(sessionProp || null);
   const [loading, setLoading] = useState(!sessionProp);
   const [error, setError] = useState("");
@@ -153,6 +170,26 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
   // camera. { positioned: bool, message: string | null }.
   const [positioning, setPositioning] = useState({ positioned: false, message: null });
   const advancingRef = useRef(false);
+  const enteredRef = useRef(false);
+
+  // Jump straight to whichever exercise/set Home sent us in for (resuming a
+  // circuit rather than always starting over at exercise 0, set 1). Runs
+  // once, as soon as the plan is actually loaded - only then do we know how
+  // many sets the target exercise has, to clamp entryStartSet against it.
+  useEffect(() => {
+    if (!session || session.length === 0 || enteredRef.current) return;
+    enteredRef.current = true;
+    const idx = Math.min(Math.max(entryExerciseIndex ?? 0, 0), session.length - 1);
+    const targetExercise = session[idx];
+    const maxSet = targetExercise?.sets || 1;
+    const clampedSet = Math.min(Math.max(entryStartSet ?? 1, 1), maxSet);
+    setExerciseIndex(idx);
+    setCurrentSet(clampedSet);
+    // entryExerciseIndex/entryStartSet are only meant to be read once, on
+    // entry - re-running this if they somehow changed later would yank the
+    // user back to a different exercise mid-session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
 
   const handleCvFaultDetected = () => {
     // Not surfaced as UI - reserved for Malek's Speech Synthesis work if it
@@ -183,8 +220,14 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
   // what starts the rest interstitial and its audio cue together, from
   // the exact same call, so they can't drift out of sync.
   const completeSet = () => {
+    const exercise = session?.[exerciseIndex];
     setSessionState("resting");
     setRestSecondsLeft(REST_SECONDS);
+    // Log the set the moment it finishes, not at the end of the whole
+    // exercise - this is what lets Home show real "X/Y sets" progress, and
+    // means backing out during the rest that follows can never lose credit
+    // for a set that's already done.
+    if (exercise) logCompletion(exercise);
 
     const phrase = SET_COMPLETE_PHRASES[Math.floor(Math.random() * SET_COMPLETE_PHRASES.length)];
     speakText(`${phrase} Take a ${REST_SECONDS} second break.`);
@@ -201,7 +244,8 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
   }, [cvRepCount]);
 
   // Countdown the rest break, one second at a time, and auto-advance to
-  // the next set (or exercise) once it hits zero.
+  // the next set (or back to Home, if that was the last set) once it hits
+  // zero.
   useEffect(() => {
     if (sessionState !== "resting" || restSecondsLeft === null) return;
 
@@ -231,17 +275,11 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
       setCvRepCount(0);
       setSessionState("active");
     } else {
-      logCompletion(exercise);
-      if (exerciseIndex < session.length - 1) {
-        speakText("Nice work! On to the next exercise.");
-        setExerciseIndex((prev) => prev + 1);
-        setCurrentSet(1);
-        setCvRepCount(0);
-        setSessionState("active");
-      } else {
-        speakText("Workout complete. Great job today!");
-        if (onNavigate) onNavigate("home");
-      }
+      // No forced "next exercise" - Home is the hub now, so once this
+      // exercise's sets are done, go back there and let the user pick
+      // whatever's next themselves.
+      speakText("Nice work! Exercise complete.");
+      if (onNavigate) onNavigate("home");
     }
   };
 
@@ -250,6 +288,20 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
     advancingRef.current = true;
     setRestSecondsLeft(null);
     advanceAfterRest();
+  };
+
+  // Shared by "Exit Session" and the rest interstitial's "Back" button -
+  // leaving mid-session should never keep talking after the user's already
+  // navigated away, and shouldn't let a stale countdown fire advanceAfterRest
+  // once we're gone. Whatever set already finished stays logged either way,
+  // since completeSet() logs it immediately, not at the end of the rest.
+  const leaveSession = () => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    advancingRef.current = true;
+    setRestSecondsLeft(null);
+    if (onNavigate) onNavigate("home");
   };
 
   // Speech Synthesis needs a user gesture before it's allowed to speak in
@@ -330,12 +382,7 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
 
   const logCompletion = (exercise) => {
     if (!user?.id) return;
-    // Locked exercises log under their clean id ("squat"). Everything else
-    // (a catalog pick or a PT-typed name) logs under its readable name
-    // instead of a cryptic ExerciseDB id, so Progress's breakdown stays legible.
-    const identifier = isLockedExercise(exercise.exerciseId)
-      ? exercise.exerciseId
-      : exercise.name;
+    const identifier = exerciseIdentifier(exercise.exerciseId, exercise.name);
     fetch("/backend/completion/put", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -411,6 +458,7 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
           setNumber={currentSet}
           secondsLeft={restSecondsLeft ?? REST_SECONDS}
           onSkip={handleSkipRest}
+          onBack={leaveSession}
         />
       )}
 
@@ -468,7 +516,7 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
         <div className="flex items-center justify-between mt-8">
           <button
             type="button"
-            onClick={() => onNavigate && onNavigate("home")}
+            onClick={leaveSession}
             className="text-sm font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
           >
             Exit Session
