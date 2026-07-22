@@ -10,6 +10,34 @@
   padding: 24px;
 }
 
+.auth-theme-toggle {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.auth-theme-toggle:hover {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+
+.auth-theme-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 .auth-content {
   position: relative;
   z-index: 1;
@@ -19,6 +47,12 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
+}
+
+.auth-logo {
+  width: 150px;
+  height: 150px;
+  margin-bottom: 12px;
 }
 
 .auth-wordmark {

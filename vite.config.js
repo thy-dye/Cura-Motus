@@ -9,10 +9,7 @@ export default defineConfig({
     port: 5173,
     allowedHosts: true,   // <-- allows any host, fine for local dev
     proxy: {
-      '/backend': {
-        target: 'http://localhost:5000',
-        rewrite: (path) => path.replace(/^\/backend/, ''),
-      },
+      '/backend': 'http://localhost:5000',
     },
   },
 })
