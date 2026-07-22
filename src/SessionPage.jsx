@@ -1,18 +1,43 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import NavBar from "./Navbar.jsx";
 import PoseDetector from "./cv/PoseDetector.jsx";
 import { exerciseLabel, isLockedExercise, exerciseSteps } from "./exercises.js";
 
-function CameraFeed({ feedbackMessage }) {
-  return (
-    <div className="relative w-full overflow-hidden rounded-xl bg-[var(--foreground)]">
-      <PoseDetector />
+const REST_SECONDS = 60;
 
-      {feedbackMessage && (
-        <div className="absolute bottom-3 left-3 right-3 rounded-lg bg-black/60 px-4 py-2 text-sm font-medium text-white">
-          {feedbackMessage}
-        </div>
-      )}
+// Hard-coded motivational lines read out over Speech Synthesis when a set
+// wraps up - no LLM call needed, this is just picked at random.
+const SET_COMPLETE_PHRASES = [
+  "Great job, set complete!",
+  "Nice work, that set is done.",
+  "That's the set. Way to push through.",
+  "Set complete. You're doing great.",
+  "Awesome set! Take a breather.",
+];
+
+function speakText(text) {
+  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.15;
+    window.speechSynthesis.speak(utterance);
+  }
+}
+
+// Fixed dark housing, independent of the light/dark theme toggle - camera
+// feeds conventionally sit on a black background regardless of app theme,
+// and the status text under it (in PoseDetector) is hardcoded white.
+function CameraFeed({ exerciseId, setNumber, onRepComplete, onFaultDetected, onPositioning, isActive }) {
+  return (
+    <div className="relative w-full overflow-hidden rounded-xl bg-[#18181b]">
+      <PoseDetector
+        exerciseId={exerciseId}
+        setNumber={setNumber}
+        onRepComplete={onRepComplete}
+        onFaultDetected={onFaultDetected}
+        onPositioning={onPositioning}
+        isActive={isActive}
+      />
     </div>
   );
 }
@@ -47,19 +72,19 @@ function VideoAndSteps({ exercise }) {
       <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
         <h3 className="font-semibold text-[var(--foreground)] mb-3">Steps</h3>
         {hasSteps ? (
-          <ol className="flex flex-col gap-2">
+          <ol className="flex flex-col gap-4">
             {exercise.steps.map((step, i) => (
               <li
                 key={i}
-                className="flex gap-3 text-sm text-[var(--secondary-foreground)]"
+                className="flex gap-3 text-[15px] leading-relaxed text-[var(--secondary-foreground)]"
               >
                 <span
-                  className="font-semibold text-[var(--primary)]"
+                  className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[var(--primary)]/10 text-sm font-semibold text-[var(--primary)]"
                   style={{ fontFamily: "var(--font-mono)" }}
                 >
                   {i + 1}
                 </span>
-                {step}
+                <span className="pt-0.5">{step}</span>
               </li>
             ))}
           </ol>
@@ -75,16 +100,174 @@ function VideoAndSteps({ exercise }) {
   );
 }
 
-export default function SessionPage({ user, onNavigate, onLogout, session: sessionProp }) {
+// Full-screen rest interstitial shown between sets/exercises. Fires from
+// the same completeSet() call that triggers the Speech Synthesis cue, so
+// the audio and the visual never drift out of sync with each other.
+function RestInterstitial({ setNumber, secondsLeft, onSkip }) {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-[var(--background)]/95 backdrop-blur-sm">
+      <div
+        className="pop-in flex h-24 w-24 items-center justify-center rounded-full text-6xl font-bold"
+        style={{ backgroundColor: "color-mix(in srgb, var(--accent) 15%, transparent)", color: "var(--accent)" }}
+        aria-hidden="true"
+      >
+        ✓
+      </div>
+      <h2 className="text-3xl font-bold text-[var(--foreground)]">
+        Set {setNumber} complete!
+      </h2>
+      <p
+        className="text-6xl font-bold text-[var(--accent)]"
+        style={{ fontFamily: "var(--font-mono)" }}
+      >
+        {secondsLeft}
+      </p>
+      <p className="text-sm text-[var(--muted-foreground)]">
+        Take a breather. Next set coming up.
+      </p>
+      <button
+        type="button"
+        onClick={onSkip}
+        className="rounded-lg bg-[var(--accent)] px-8 py-3 text-base font-semibold text-[var(--accent-foreground)] transition-opacity hover:opacity-90"
+      >
+        Skip rest
+      </button>
+    </div>
+  );
+}
+
+export default function SessionPage({ user, onNavigate, onLogout, session: sessionProp, theme, onToggleTheme }) {
   const [session, setSession] = useState(sessionProp || null);
   const [loading, setLoading] = useState(!sessionProp);
   const [error, setError] = useState("");
 
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [currentSet, setCurrentSet] = useState(1);
-  const [feedbackMessage, setFeedbackMessage] = useState(
-    "Get in position, then start your set."
-  );
+  // Live rep count from the CV angle tracker for the current set. Once it
+  // hits the exercise's target, the set auto-completes (see the effect
+  // below) - the "Finish Set" button is only needed to end a set early.
+  const [cvRepCount, setCvRepCount] = useState(0);
+  const [sessionState, setSessionState] = useState("active"); // active | resting
+  const [restSecondsLeft, setRestSecondsLeft] = useState(null);
+  // Positioning status from the pose detector, shown as a banner above the
+  // camera. { positioned: bool, message: string | null }.
+  const [positioning, setPositioning] = useState({ positioned: false, message: null });
+  const advancingRef = useRef(false);
+
+  const handleCvFaultDetected = () => {
+    // Not surfaced as UI - reserved for Malek's Speech Synthesis work if it
+    // ever wants to read a form correction aloud.
+  };
+
+  const handleCvPositioning = (status) => {
+    setPositioning(status);
+  };
+
+  const handleCvRepComplete = () => {
+    setCvRepCount((prev) => {
+      const nextCount = prev + 1;
+      const exercise = session?.[exerciseIndex];
+      // Only announce the rep number here if the set isn't finishing on
+      // this rep - the completion phrase below takes over instead, so we
+      // don't talk over ourselves.
+      if (!exercise || nextCount < exercise.reps) {
+        speakText(nextCount.toString());
+      }
+      return nextCount;
+    });
+  };
+
+  // Shared by both the auto-detect effect below and the manual "Finish
+  // Set" button, so a set wraps up the same way whether the camera hit
+  // the rep target or the user ended it early themselves. This is also
+  // what starts the rest interstitial and its audio cue together, from
+  // the exact same call, so they can't drift out of sync.
+  const completeSet = () => {
+    setSessionState("resting");
+    setRestSecondsLeft(REST_SECONDS);
+
+    const phrase = SET_COMPLETE_PHRASES[Math.floor(Math.random() * SET_COMPLETE_PHRASES.length)];
+    speakText(`${phrase} Take a ${REST_SECONDS} second break.`);
+  };
+
+  // Once the live rep count hits the target for this set, automatically
+  // wrap the set up - no need to wait on the manual "Finish Set" button.
+  useEffect(() => {
+    const exercise = session?.[exerciseIndex];
+    if (!exercise || sessionState !== "active") return;
+    if (cvRepCount < exercise.reps) return;
+    completeSet();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cvRepCount]);
+
+  // Countdown the rest break, one second at a time, and auto-advance to
+  // the next set (or exercise) once it hits zero.
+  useEffect(() => {
+    if (sessionState !== "resting" || restSecondsLeft === null) return;
+
+    if (restSecondsLeft <= 0) {
+      if (!advancingRef.current) {
+        advancingRef.current = true;
+        advanceAfterRest();
+      }
+      return;
+    }
+
+    const t = setTimeout(() => setRestSecondsLeft((prev) => prev - 1), 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionState, restSecondsLeft]);
+
+  const advanceAfterRest = () => {
+    const exercise = session?.[exerciseIndex];
+    advancingRef.current = false;
+    setRestSecondsLeft(null);
+
+    if (!exercise) return;
+
+    if (currentSet < exercise.sets) {
+      speakText(`Set ${currentSet + 1}, go!`);
+      setCurrentSet((prev) => prev + 1);
+      setCvRepCount(0);
+      setSessionState("active");
+    } else {
+      logCompletion(exercise);
+      if (exerciseIndex < session.length - 1) {
+        speakText("Nice work! On to the next exercise.");
+        setExerciseIndex((prev) => prev + 1);
+        setCurrentSet(1);
+        setCvRepCount(0);
+        setSessionState("active");
+      } else {
+        speakText("Workout complete. Great job today!");
+        if (onNavigate) onNavigate("home");
+      }
+    }
+  };
+
+  const handleSkipRest = () => {
+    if (sessionState !== "resting") return;
+    advancingRef.current = true;
+    setRestSecondsLeft(null);
+    advanceAfterRest();
+  };
+
+  // Speech Synthesis needs a user gesture before it's allowed to speak in
+  // most browsers - this "unlocks" it on the first click anywhere on the
+  // page instead of making the user wait for it to silently fail once.
+  useEffect(() => {
+    const unlockSpeech = () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        const utterance = new SpeechSynthesisUtterance(" ");
+        window.speechSynthesis.speak(utterance);
+      }
+      document.removeEventListener("click", unlockSpeech);
+    };
+    document.addEventListener("click", unlockSpeech);
+    return () => {
+      document.removeEventListener("click", unlockSpeech);
+    };
+  }, []);
 
   useEffect(() => {
     if (sessionProp) return; // explicit session passed in, skip fetching
@@ -139,17 +322,9 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
     };
   }, [user?.id, sessionProp]);
 
-  // TODO (Malek): once camera-based rep detection exists, it can drive this
-  // automatically per set; this manual "Log Set" button should stay as the
-  // fallback/override for when detection misses something.
-  const completeSet = () => {
-    const exercise = session[exerciseIndex];
-    if (currentSet < exercise.sets) {
-      setCurrentSet((prev) => prev + 1);
-      setFeedbackMessage(`Set ${currentSet} done. Nice work, get ready for the next set.`);
-    } else {
-      logCompletion(exercise);
-      goToNextExercise();
+  const handleFinishSetClick = () => {
+    if (sessionState === "active") {
+      completeSet();
     }
   };
 
@@ -173,20 +348,16 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
     });
   };
 
-  const goToNextExercise = () => {
-    if (exerciseIndex < session.length - 1) {
-      setExerciseIndex((prev) => prev + 1);
-      setCurrentSet(1);
-      setFeedbackMessage("Get in position, then start your set.");
-    } else if (onNavigate) {
-      onNavigate("home");
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background)]">
-        <NavBar activePath="session" onNavigate={onNavigate} onLogout={onLogout} />
+        <NavBar
+          activePath="session"
+          onNavigate={onNavigate}
+          onLogout={onLogout}
+          theme={theme}
+          onToggleTheme={onToggleTheme}
+        />
         <main className="mx-auto max-w-5xl px-8 py-10">
           <p className="text-sm text-[var(--muted-foreground)]">
             Loading your session…
@@ -199,7 +370,13 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
   if (error || !session || session.length === 0) {
     return (
       <div className="min-h-screen bg-[var(--background)]">
-        <NavBar activePath="session" onNavigate={onNavigate} onLogout={onLogout} />
+        <NavBar
+          activePath="session"
+          onNavigate={onNavigate}
+          onLogout={onLogout}
+          theme={theme}
+          onToggleTheme={onToggleTheme}
+        />
         <main className="mx-auto max-w-5xl px-8 py-10 text-center">
           <p className="text-sm text-[var(--muted-foreground)] mb-4">
             {error || "You don't have a plan yet."}
@@ -221,30 +398,65 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <NavBar activePath="session" onNavigate={onNavigate} onLogout={onLogout} />
+      <NavBar
+        activePath="session"
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+      />
+
+      {sessionState === "resting" && (
+        <RestInterstitial
+          setNumber={currentSet}
+          secondsLeft={restSecondsLeft ?? REST_SECONDS}
+          onSkip={handleSkipRest}
+        />
+      )}
 
       <main className="mx-auto max-w-5xl px-8 py-10">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--foreground)]">
-              {exercise.name}
-            </h1>
-            <p className="text-sm text-[var(--muted-foreground)] mt-1">
-              Exercise {exerciseIndex + 1} of {session.length}
-            </p>
+        <div className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] px-6 py-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-[var(--foreground)]">
+                {exercise.name}
+              </h1>
+              <p className="text-sm text-[var(--muted-foreground)] mt-1">
+                Exercise {exerciseIndex + 1} of {session.length}
+              </p>
+            </div>
+
+            <div
+              className="rounded-xl bg-[var(--primary)] px-6 py-3 text-lg font-bold text-[var(--primary-foreground)]"
+              style={{ fontFamily: "var(--font-mono)" }}
+            >
+              Set {currentSet} / {exercise.sets} &nbsp;·&nbsp; {cvRepCount}/{exercise.reps} reps
+            </div>
           </div>
 
-          <div
-            className="rounded-xl bg-[var(--primary)] px-6 py-3 text-lg font-bold text-[var(--primary-foreground)] shadow-sm"
-            style={{ fontFamily: "var(--font-mono)" }}
-          >
-            Set {currentSet} / {exercise.sets} &nbsp;·&nbsp; {exercise.reps} reps
-          </div>
+          {isCamera && sessionState === "active" && (positioning.positioned || positioning.message) && (
+            <div className="mt-4 flex items-center gap-2.5 border-t border-[var(--border)] pt-4 text-sm font-medium text-[var(--secondary-foreground)]">
+              <span
+                className={`font-semibold ${positioning.positioned ? "text-[var(--primary)]" : "text-amber-500"}`}
+                style={{ fontFamily: "var(--font-mono)" }}
+              >
+                {positioning.positioned ? "✓" : "⚠"}
+              </span>
+              {positioning.positioned ? "Positioned! Now go!" : positioning.message}
+            </div>
+          )}
         </div>
 
         {isCamera ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <CameraFeed feedbackMessage={feedbackMessage} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+            <CameraFeed
+              exerciseId={exercise.exerciseId}
+              setNumber={currentSet}
+              onRepComplete={handleCvRepComplete}
+              onFaultDetected={handleCvFaultDetected}
+              onPositioning={handleCvPositioning}
+              isActive={sessionState === "active"}
+            />
             <VideoAndSteps exercise={exercise} />
           </div>
         ) : (
@@ -262,13 +474,15 @@ export default function SessionPage({ user, onNavigate, onLogout, session: sessi
             Exit Session
           </button>
 
-          <button
-            type="button"
-            onClick={completeSet}
-            className="rounded-lg bg-[var(--primary)] px-6 py-2.5 text-sm font-semibold text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] transition-colors"
-          >
-            Log Set
-          </button>
+          {sessionState === "active" && (
+            <button
+              type="button"
+              onClick={handleFinishSetClick}
+              className="rounded-lg bg-[var(--primary)] px-6 py-2.5 text-sm font-semibold text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] transition-colors"
+            >
+              Finish Set
+            </button>
+          )}
         </div>
       </main>
     </div>

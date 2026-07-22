@@ -3,10 +3,15 @@ import NavBar from "./Navbar.jsx";
 import PlanWizard from "./PlanWizard.jsx";
 import PlanResult from "./PlanResult.jsx";
 
-export default function PlanPage({ user, onNavigate, onLogout, onComplete, initialStep = "mode" }) {
-  const [mode, setMode] = useState(null); // "injury" | "general"
-  const [step, setStep] = useState(initialStep); // "mode" | "exercises" | "sports"
+export default function PlanPage({ user, onNavigate, onLogout, onComplete, initialStep = "mode", theme, onToggleTheme }) {
+  const [mode, setMode] = useState(null); // "injury" | "general" | "custom"
+  const [step, setStep] = useState(initialStep); // "mode" | "exercises" | "review" | "sports"
   const [exercises, setExercises] = useState([{ name: "", sets: "", reps: "" }]);
+  // Aligned by index with `exercises` - each entry is null (not yet
+  // resolved) or { status: "matched", exerciseId, name, gifUrl,
+  // instructions } / { status: "no_match" }, filled in by continueToReview.
+  const [matches, setMatches] = useState([]);
+  const [resolving, setResolving] = useState(false);
   const [sports, setSports] = useState([]);
   const [pastInjuries, setPastInjuries] = useState([]);
   const [description, setDescription] = useState("");
@@ -14,13 +19,16 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
 
-  const stepOrder =
-    mode === "injury" ? ["mode", "exercises", "sports"] : ["mode", "sports"];
+  const isManualEntryMode = mode === "injury" || mode === "custom";
+
+  const stepOrder = isManualEntryMode
+    ? ["mode", "exercises", "review", "sports"]
+    : ["mode", "sports"];
   const currentIndex = stepOrder.indexOf(step);
 
   const chooseMode = (chosen) => {
     setMode(chosen);
-    setStep(chosen === "injury" ? "exercises" : "sports");
+    setStep(chosen === "general" ? "sports" : "exercises");
   };
 
   const goBack = () => {
@@ -28,11 +36,51 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
       if (onNavigate) onNavigate("home");
       return;
     }
-    if (step === "sports" && mode === "injury") {
+    if (step === "review") {
       setStep("exercises");
       return;
     }
+    if (step === "sports" && isManualEntryMode) {
+      setStep("review");
+      return;
+    }
     setStep("mode");
+  };
+
+  // Resolves each typed exercise name against the ExerciseDB catalog so
+  // the review step can show the match (name + thumbnail) before saving,
+  // with a chance to retype anything that matched wrong.
+  const continueToReview = async () => {
+    const hasAny = exercises.some((ex) => ex.name.trim());
+    if (!hasAny) {
+      setError("Add at least one exercise before continuing.");
+      return;
+    }
+    setError("");
+    setResolving(true);
+    try {
+      const resolved = await Promise.all(
+        exercises.map(async (ex) => {
+          if (!ex.name.trim()) return null;
+          try {
+            const res = await fetch("/backend/api/resolve-exercise", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: ex.name.trim() }),
+            });
+            const data = res.ok ? await res.json() : null;
+            const match = data?.match;
+            return match ? { status: "matched", ...match } : { status: "no_match" };
+          } catch {
+            return { status: "no_match" };
+          }
+        })
+      );
+      setMatches(resolved);
+      setStep("review");
+    } finally {
+      setResolving(false);
+    }
   };
 
   const updateExercise = (index, field, value) => {
@@ -76,50 +124,38 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
   };
 
   const handleSave = async () => {
-    if (mode === "injury") {
-      const prescribedPlan = exercises
-        .filter((ex) => ex.name.trim())
-        .map((ex) => ({
-          exercise_id: null,
-          name: ex.name.trim(),
-          sets: Number(ex.sets) || 0,
-          reps: Number(ex.reps) || 0,
-          source: "prescribed",
-        }));
+    if (isManualEntryMode) {
+      // Matches were already resolved in continueToReview and confirmed on
+      // the review step - just combine them with the typed sets/reps here.
+      const enrichedPrescribed = exercises
+        .map((ex, index) => ({ ex, match: matches[index] }))
+        .filter(({ ex }) => ex.name.trim())
+        .map(({ ex, match }) => {
+          const base = {
+            exercise_id: null,
+            name: ex.name.trim(),
+            sets: Number(ex.sets) || 0,
+            reps: Number(ex.reps) || 0,
+            source: "prescribed",
+          };
+          if (match?.status === "matched") {
+            return {
+              ...base,
+              exercise_id: match.exerciseId,
+              gif_url: match.gifUrl,
+              instructions: match.instructions,
+            };
+          }
+          return base;
+        });
 
-      if (prescribedPlan.length === 0) {
+      if (enrichedPrescribed.length === 0) {
         setError("Add at least one exercise before saving.");
         return;
       }
 
       setSubmitting(true);
       try {
-        // Try to match each typed name to a real ExerciseDB entry so it
-        // gets a real gif + instructions instead of just raw text. A
-        // failed or missing match just falls back to the plain typed name.
-        const enrichedPrescribed = await Promise.all(
-          prescribedPlan.map(async (item) => {
-            try {
-              const res = await fetch("/backend/api/resolve-exercise", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: item.name }),
-              });
-              const data = res.ok ? await res.json() : null;
-              const match = data?.match;
-              if (!match) return item;
-              return {
-                ...item,
-                exercise_id: match.exerciseId,
-                gif_url: match.gifUrl,
-                instructions: match.instructions,
-              };
-            } catch {
-              return item;
-            }
-          })
-        );
-
         const saveRes = await fetch("/backend/activities/put_exercises", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -221,7 +257,13 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <NavBar activePath="plan" onNavigate={onNavigate} onLogout={onLogout} />
+      <NavBar
+        activePath="plan"
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+      />
 
       <main className="mx-auto max-w-2xl px-8 py-10">
         {result || submitting ? (
@@ -231,7 +273,10 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
             mode={mode}
             step={step}
             currentIndex={currentIndex}
+            totalSteps={stepOrder.length}
             exercises={exercises}
+            matches={matches}
+            resolving={resolving}
             sports={sports}
             pastInjuries={pastInjuries}
             description={description}
@@ -244,7 +289,8 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
             onToggleSport={toggleSport}
             onTogglePastInjury={togglePastInjury}
             onDescriptionChange={setDescription}
-            onContinue={() => setStep("sports")}
+            onContinue={continueToReview}
+            onContinueFromReview={() => setStep("sports")}
             onSave={handleSave}
           />
         )}
