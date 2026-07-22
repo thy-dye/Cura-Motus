@@ -71,18 +71,18 @@ Track completed sessions, your current streak, and a breakdown of reps per exerc
 
 For questions, suggestions, or collaborative opportunities, please contact:
 
-### Eva King-Senior
-- Email: [evakingsr@gmail.com](mailto:evakingsr@gmail.com)
-- GitHub: [evakingsr](https://github.com/evakingsr)
+### Shellsea Nunez-Aviles
+- Email: [shenunavi126@gmail.com](mailto:shenunavi126@gmail.com)
+- GitHub: [aesheeds](https://github.com/aesheeds)
 
 ### Malek Aloulou
 - Email: [aloulou@bc.edu](mailto:aloulou@bc.edu)
 - GitHub: [aloulou-dev](https://github.com/aloulou-dev)
 
-### Shellsea Nunez-Aviles
-- Email: [shenunavi126@gmail.com](mailto:shenunavi126@gmail.com)
-- GitHub: [aesheeds](https://github.com/aesheeds)
-
 ### Ty Torres
 - Email: [Tytorres55@gmail.com](mailto:Tytorres55@gmail.com)
 - GitHub: [thy-dye](https://github.com/thy-dye)
+
+### Eva King-Senior
+- Email: [evakingsr@gmail.com](mailto:evakingsr@gmail.com)
+- GitHub: [evakingsr](https://github.com/evakingsr)
