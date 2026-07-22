@@ -33,6 +33,16 @@ function App() {
   const [user, setUser] = useState(loadStoredUser);
   const [page, setPage] = useState("home");
   const [theme, setTheme] = useState(loadStoredTheme);
+  // Payload for the session page's entry point ({ exerciseIndex, startAtSet }
+  // or null) - set whenever something navigates to "session" with a
+  // specific exercise in mind (e.g. tapping a row on Home), so Session can
+  // resume there instead of always starting at exercise 0, set 1.
+  const [sessionEntry, setSessionEntry] = useState(null);
+
+  const navigate = (nextPage, payload) => {
+    if (nextPage === "session") setSessionEntry(payload || null);
+    setPage(nextPage);
+  };
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
@@ -77,7 +87,7 @@ function App() {
         <HomePage
           user={user}
           userName={user.firstName}
-          onNavigate={setPage}
+          onNavigate={navigate}
           onLogout={handleLogout}
           theme={theme}
           onToggleTheme={toggleTheme}
@@ -87,7 +97,7 @@ function App() {
       return (
         <PlanPage
           user={user}
-          onNavigate={setPage}
+          onNavigate={navigate}
           onLogout={handleLogout}
           theme={theme}
           onToggleTheme={toggleTheme}
@@ -97,17 +107,19 @@ function App() {
       return (
         <SessionPage
           user={user}
-          onNavigate={setPage}
+          onNavigate={navigate}
           onLogout={handleLogout}
           theme={theme}
           onToggleTheme={toggleTheme}
+          entryExerciseIndex={sessionEntry?.exerciseIndex}
+          entryStartSet={sessionEntry?.startAtSet}
         />
       );
     case "progress":
       return (
         <ProgressPage
           user={user}
-          onNavigate={setPage}
+          onNavigate={navigate}
           onLogout={handleLogout}
           theme={theme}
           onToggleTheme={toggleTheme}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import NavBar from "./Navbar.jsx";
 import WeekGrid from "./WeekGrid.jsx";
-import { exerciseLabel, isLockedExercise } from "./exercises.js";
+import { exerciseLabel, exerciseIdentifier } from "./exercises.js";
 import { dayKey, calculateStreak } from "./streak.js";
 
 export default function HomePage({ user, userName = "User", onNavigate, onLogout, theme, onToggleTheme }) {
@@ -32,9 +32,10 @@ export default function HomePage({ user, userName = "User", onNavigate, onLogout
         }
         const plan = activitiesData?.[0]?.Exercises?.plan || [];
 
-        // Completions are supplementary (checkmarks + the week grid). A
-        // failure here shouldn't block showing the exercise list itself.
-        let completedToday = new Set();
+        // Completions are supplementary (per-exercise progress + the week
+        // grid). A failure here shouldn't block showing the exercise list
+        // itself - everything just shows as not-yet-started.
+        let completedSetsToday = new Map(); // identifier -> count of today's rows
         try {
           const completionsRes = await fetch(
             `/backend/completion/get_user_exercises?user_id=${user.id}`
@@ -42,28 +43,31 @@ export default function HomePage({ user, userName = "User", onNavigate, onLogout
           if (completionsRes.ok) {
             const fetchedCompletions = (await completionsRes.json().catch(() => [])) || [];
             const today = new Date().toDateString();
-            completedToday = new Set(
-              fetchedCompletions
-                .filter((c) => new Date(c.Completion).toDateString() === today)
-                .map((c) => c.ExerciseName)
-            );
+            for (const c of fetchedCompletions) {
+              if (new Date(c.Completion).toDateString() !== today) continue;
+              completedSetsToday.set(c.ExerciseName, (completedSetsToday.get(c.ExerciseName) || 0) + 1);
+            }
             if (!cancelled) setCompletions(fetchedCompletions);
           }
         } catch {
-          // ignore, exercises just show as not-done
+          // ignore, exercises just show as not-started
         }
 
         if (!cancelled) {
           setExercises(
-            plan.map((item, index) => ({
-              id: index,
-              name: item.name || exerciseLabel(item.exercise_id),
-              sets: item.sets,
-              reps: item.reps,
-              done: completedToday.has(
-                isLockedExercise(item.exercise_id) ? item.exercise_id : item.name
-              ),
-            }))
+            plan.map((item, index) => {
+              const name = item.name || exerciseLabel(item.exercise_id);
+              const identifier = exerciseIdentifier(item.exercise_id, name);
+              const completedSets = Math.min(completedSetsToday.get(identifier) || 0, item.sets);
+              return {
+                id: index,
+                name,
+                sets: item.sets,
+                reps: item.reps,
+                completedSets,
+                done: completedSets >= item.sets,
+              };
+            })
           );
         }
       } catch {
@@ -85,6 +89,16 @@ export default function HomePage({ user, userName = "User", onNavigate, onLogout
   const completedDayKeys = new Set(completions.map((c) => dayKey(c.Completion)));
   const streak = calculateStreak(completedDayKeys);
 
+  // Jumps straight into an exercise's next incomplete set (or set 1 again,
+  // for an already-finished exercise treated as a bonus redo) instead of
+  // always restarting the whole plan from the top - Home is the hub, any
+  // exercise can be entered directly, in any order.
+  const startExercise = (exercise) => {
+    if (!onNavigate) return;
+    const startAtSet = exercise.completedSets >= exercise.sets ? 1 : exercise.completedSets + 1;
+    onNavigate("session", { exerciseIndex: exercise.id, startAtSet });
+  };
+
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <NavBar
@@ -103,7 +117,7 @@ export default function HomePage({ user, userName = "User", onNavigate, onLogout
         <div className="grid grid-cols-2 gap-4 mb-10">
           <button
             type="button"
-            onClick={() => onNavigate && onNavigate("session")}
+            onClick={() => (nextExercise ? startExercise(nextExercise) : onNavigate && onNavigate("session"))}
             className="rounded-xl border border-[var(--border)] bg-[var(--card)] py-8 text-center font-semibold text-[var(--foreground)] transition-all hover:border-[var(--primary)] hover:bg-[var(--primary)]/10 hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
           >
             Start Session
@@ -205,17 +219,17 @@ export default function HomePage({ user, userName = "User", onNavigate, onLogout
                       className="text-sm text-[var(--muted-foreground)]"
                       style={{ fontFamily: "var(--font-mono)" }}
                     >
-                      {exercise.sets} × {exercise.reps}
+                      {exercise.completedSets}/{exercise.sets} sets &middot; {exercise.reps} reps
                     </span>
-                    {!exercise.done && nextExercise?.id === exercise.id && (
-                      <button
-                        type="button"
-                        onClick={() => onNavigate && onNavigate("session")}
-                        className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--primary-foreground)] transition-colors hover:bg-[var(--primary-hover)]"
-                      >
-                        Start
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => startExercise(exercise)}
+                      className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--primary-foreground)] transition-colors hover:bg-[var(--primary-hover)]"
+                    >
+                      {exercise.completedSets > 0 && exercise.completedSets < exercise.sets
+                        ? "Continue"
+                        : "Start"}
+                    </button>
                   </div>
                 </li>
               ))}

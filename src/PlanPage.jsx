@@ -13,7 +13,9 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
   const [matches, setMatches] = useState([]);
   const [resolving, setResolving] = useState(false);
   const [sports, setSports] = useState([]);
+  const [otherSportText, setOtherSportText] = useState("");
   const [pastInjuries, setPastInjuries] = useState([]);
+  const [otherInjuryText, setOtherInjuryText] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -186,13 +188,23 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
     setError("");
     setSubmitting(true);
 
+    // "Other" is a placeholder pill, not something the backend should ever
+    // actually see - swap in what the user typed, falling back to the
+    // literal word only if they left it blank.
+    const resolvedSports = sports.map((s) =>
+      s === "Other" && otherSportText.trim() ? otherSportText.trim() : s
+    );
+    const resolvedPastInjuries = pastInjuries.map((i) =>
+      i === "Other" && otherInjuryText.trim() ? otherInjuryText.trim() : i
+    );
+
     try {
       const planRes = await fetch("/backend/api/generate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sports,
-          past_injuries: pastInjuries,
+          sports: resolvedSports,
+          past_injuries: resolvedPastInjuries,
           current_issue: description,
           details: "",
         }),
@@ -278,7 +290,9 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
             matches={matches}
             resolving={resolving}
             sports={sports}
+            otherSportText={otherSportText}
             pastInjuries={pastInjuries}
+            otherInjuryText={otherInjuryText}
             description={description}
             error={error}
             onChooseMode={chooseMode}
@@ -287,7 +301,9 @@ export default function PlanPage({ user, onNavigate, onLogout, onComplete, initi
             onAddExerciseRow={addExerciseRow}
             onRemoveExerciseRow={removeExerciseRow}
             onToggleSport={toggleSport}
+            onOtherSportTextChange={setOtherSportText}
             onTogglePastInjury={togglePastInjury}
+            onOtherInjuryTextChange={setOtherInjuryText}
             onDescriptionChange={setDescription}
             onContinue={continueToReview}
             onContinueFromReview={() => setStep("sports")}
